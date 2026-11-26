@@ -218,9 +218,17 @@ function norm(e,t,lg,po){
 function timeKnown(e,c){return(c.timeValid??e.timeValid)!==false}
 const clock=(d,e)=>e.tv===false?'TBA':d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
 // round label for a game: soccer cups put it in seasonType.name; NHL/NBA/NFL put it in the note headline ("East 1st Round - Game 3")
+// College headlines are long ("NCAA Men's Basketball Championship - East Region - Sweet 16", "College Football Playoff Quarterfinal at the Rose Bowl"):
+// keep the part that names the round, drop the competition name, the region and the bowl.
+function shortRound(h){
+ const t=String(h||'');
+ let m=t.match(/\b(First Four|1st Round|2nd Round|Sweet 16|Elite 8|Final Four|National Championship|Championship Game|First Round|Second Round|Quarterfinal|Semifinal)s?\b/i);
+ if(/College Football Playoff|NCAA .*Championship/i.test(t)&&m){const r=m[1];return/^1st Round$/i.test(r)?'First Round':/^2nd Round$/i.test(r)?'Second Round':r.replace(/^\w/,x=>x.toUpperCase())}
+ return t}
 function roundOf(e,c,isPo){
  const h=(c.notes||[]).map(n=>n.headline||'').find(x=>/round|final|wild card|divisional|championship|super bowl|semi|quarter|leg/i.test(x)&&!/advance|win .* on pen/i.test(x));
  const st=e.seasonType?.name||'';
+ if(h&&/College Football Playoff|NCAA .*Championship/i.test(h))return shortRound(h);
  if(h)return h.replace(/\s*-\s*(Game|Leg)\s*\d+.*$/i,'').replace(/^\d(st|nd) Leg.*$/i,st).trim()||st;
  return /round|final|leg|knockout/i.test(st)?st:''}
 // Rugby: ESPN has no per-club schedule, so read the league scoreboard for last year, this year and next, and keep this club's games.
@@ -351,7 +359,7 @@ async function loadTeams(sp,lg){
   (function w(n){(n.standings?.entries||[]).forEach(e=>{const t=e.team;if(!t||seen.has(String(t.id)))return;seen.add(String(t.id));
     L.push({id:String(t.id),n:t.displayName||t.shortDisplayName||t.name,l:t.logos?.[0]?.href||'',c:'',a:''})});(n.children||[]).forEach(w)})(d)}catch{}
  try{
-  const d=await j(`${API}${sp}/${lg}/teams?limit=500&lang=en`),by={};
+  const d=await j(`${API}${sp}/${lg}/teams?limit=1000&lang=en`),by={};
   (d.sports?.[0]?.leagues?.[0]?.teams||[]).forEach(x=>{const t=x.team;if(t)by[String(t.id)]=t});
   L.forEach(t=>{const o=by[t.id];if(o){t.c=o.color?'#'+o.color:'';t.a=o.alternateColor?'#'+o.alternateColor:''}})}catch{}
  if(L.length){L.sort((a,b)=>a.n.localeCompare(b.n));ls.set(ck,L);return L}
@@ -372,13 +380,26 @@ const BRAND={
  'nfl:13':'#a5acaf','nfl:23':'#ffb612','nfl:34':'#a71930','nfl:33':'#6b3fb5','nfl:3':'#e8591a',
  'nba:17':'#7a7a7a','nba:24':'#8a949c','nba:12':'#c8102e','nba:21':'#e56020','nba:26':'#4e008e','nba:11':'#ffd520','nba:14':'#98002e',
  'mlb:4':'#7a8791','mlb:10':'#2a4a8a','mlb:27':'#5a2d8c','mlb:23':'#fdb827','mlb:26':'#fd5a1e','mlb:9':'#d31145',
- 'nhl:8':'#a2aaad','nhl:124292':'#68a2b9','nhl:16':'#fcb514','nhl:129764':'#71afe5'};
+ 'nhl:8':'#a2aaad','nhl:124292':'#68a2b9','nhl:16':'#fcb514','nhl:129764':'#71afe5',
+ // WNBA (ids are the WNBA's own)
+ 'wnba:17':'#c8102e','wnba:132052':'#e8543a',
+ // rugby: Premiership clubs, by ESPN team id (where ESPN sends none, black, grey or very dark blue)
+ 'rugby:25898':'#2a5db0','rugby:25899':'#2a4a9a','rugby:116227':'#a8860a','rugby:25901':'#d6006e','rugby:25906':'#6a6a6a',
+ // NCAA football + basketball, by ESPN team id (the same school keeps one color in both)
+ 'ncaa:242':'#3a63b8','ncaa:2306':'#6a3d9a','ncaa:84':'#c8102e','ncaa:2294':'#e0a800','ncaa:275':'#c5050c','ncaa:264':'#5b3a9a','ncaa:213':'#2f5fa8',
+ 'ncaa:2623':'#a01c2c','ncaa:41':'#2e5aa8','ncaa:2440':'#3a63b8','ncaa:328':'#2e5aa8','ncaa:201':'#c8102e','ncaa:2579':'#a0192a','ncaa:245':'#a01c2c',
+ 'ncaa:290':'#3a63b8','ncaa:2230':'#a01c3c','ncaa:45':'#4a7ab8','ncaa:46':'#4a6fb0','ncaa:2692':'#5b3a9a','ncaa:2272':'#6a3da8','ncaa:27':'#3a63b8',
+ 'ncaa:2856':'#3a63b8','ncaa:2619':'#c8102e','ncaa:2182':'#3a63b8','ncaa:2405':'#3a63b8','ncaa:108':'#c8102e','ncaa:2514':'#3a63b8','ncaa:2428':'#a0183a',
+ 'ncaa:93':'#3a63b8','ncaa:302':'#3a63b8','ncaa:2634':'#4a4ac8','ncaa:2198':'#a01c2c','ncaa:2640':'#a0185a','ncaa:2010':'#a01c2c','ncaa:2541':'#a01c2c',
+ 'ncaa:2501':'#6a3da8','ncaa:2507':'#6a6a6a','ncaa:2097':'#e0a800','ncaa:2217':'#c8102e','ncaa:2320':'#c8102e','ncaa:2916':'#c8102e','ncaa:299':'#e0a800',
+ 'ncaa:91':'#c8102e','ncaa:2197':'#3a63b8','ncaa:2110':'#6a3da8','ncaa:2627':'#6a3da8','ncaa:3101':'#c8102e','ncaa:2385':'#2e5aa8','ncaa:2815':'#2e5aa8',
+ 'ncaa:284':'#6a3da8','ncaa:2900':'#c8102e','ncaa:2837':'#3a63b8','ncaa:2330':'#2e8a4a','ncaa:88':'#c8102e'};
 const lum=h=>{const r=parseInt(h.slice(1,3),16)/255,g=parseInt(h.slice(3,5),16)/255,b=parseInt(h.slice(5,7),16)/255;return .2126*r+.7152*g+.0722*b};
 const sat=h=>{const r=parseInt(h.slice(1,3),16)/255,g=parseInt(h.slice(3,5),16)/255,b=parseInt(h.slice(5,7),16)/255,mx=Math.max(r,g,b),mn=Math.min(r,g,b);return mx?(mx-mn)/mx:0};
 const okCol=h=>/^#[0-9a-f]{6}$/i.test(h||'')&&lum(h)>=.14&&lum(h)<=.80&&sat(h)>=.25;
 // order: hand-picked brand color → ESPN primary (if readable) → ESPN alternate (if readable) → unused palette color
 function pickColor(sp,t,used,league){
- const lg=league?(['nfl','nba','mlb','nhl'].includes(league)?league:''):{football:'nfl',basketball:'nba',baseball:'mlb',hockey:'nhl'}[sp];
+ const lg=league?(NCAA.has(league)?'ncaa':league==='wnba'?'wnba':league==='267979'?'rugby':['nfl','nba','mlb','nhl'].includes(league)?league:''):{football:'nfl',basketball:'nba',baseball:'mlb',hockey:'nhl'}[sp];
  const b=sp==='soccer'?BRAND[Number(t.id)]:lg?BRAND[lg+':'+t.id]:'';
  let c=/^#[0-9a-f]{6}$/i.test(b||'')?b:[t.c,t.a].find(okCol);
  if(!c)c=PAL.find(p=>!used.has(p))||PAL[used.size%PAL.length];
