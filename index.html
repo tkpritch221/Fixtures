@@ -73,6 +73,7 @@ h2{font-size:14px;font-weight:700;color:var(--mute);margin:22px 4px 8px}
 .bio{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:14px 0 4px}
 .bio div{grid-column:span 2;min-width:0}
 .bio.b5 div:nth-child(n+4){grid-column:span 3}
+.bio.b4 div{grid-column:span 3}
 .bio div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 6px;text-align:center}
 .bio b{display:block;font-size:15px;overflow-wrap:anywhere}.bio span{font-size:11px;color:var(--mute);text-transform:uppercase;letter-spacing:.04em}
 .pst{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:12px}
@@ -80,6 +81,20 @@ h2{font-size:14px;font-weight:700;color:var(--mute);margin:22px 4px 8px}
 .pst td:first-child small{display:block;color:var(--mute);font-size:11px}
 .pgl td:first-child{white-space:nowrap}.pgl .W{color:var(--w);font-weight:700}.pgl .L{color:var(--l);font-weight:700}.pgl .D{color:var(--d);font-weight:700}
 .nm{cursor:pointer}
+.dot{cursor:pointer}
+.dot.ring{box-shadow:0 0 0 1px var(--ink)}
+.dotb{background:none;border:0;padding:8px;margin:-8px;display:grid;place-items:center;cursor:pointer;flex:none}
+.tab i.ring{box-shadow:0 0 0 1px var(--ink)}
+.swr{position:relative;overflow:hidden;border-bottom:1px solid var(--line)}
+.swr:last-of-type{border-bottom:0}
+.swrow{position:relative;background:var(--card);transition:transform .18s ease;border-bottom:0;touch-action:pan-y;will-change:transform}
+.swr.open .swrow{transform:translateX(-96px)}
+.swdel{position:absolute;right:0;top:0;bottom:0;width:96px;background:#d63030;color:#fff;border:0;font:700 15px system-ui;font-family:inherit}
+.rvb:disabled{opacity:.55;background:transparent;border-color:transparent;color:var(--mute)}
+.swatches{display:flex;flex-wrap:wrap;gap:10px;padding:10px 14px 14px;background:var(--card);border:1px solid var(--line);border-radius:12px;margin:-4px 0 8px}
+.sw{width:30px;height:30px;border-radius:50%;border:2px solid transparent;padding:0}
+.sw.on{border-color:var(--ink)}
+.rk{font-size:.78em;font-weight:700;color:var(--mute)}
 .nm:active{opacity:.6}
 .bar{position:sticky;top:0;display:flex;justify-content:space-between;z-index:2}
 .bar button{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:8px 14px;font-size:14px;font-weight:600;font-family:inherit}
@@ -158,7 +173,7 @@ tr+tr td{border-top:1px solid var(--line)}
 button.p{width:100%;background:none;border:0;border-bottom:1px solid var(--line);color:inherit;font:inherit;text-align:left;cursor:pointer}
 button.p:last-child{border-bottom:0}
 .bka{align-self:center;color:var(--mute);font-size:20px;padding-top:30px}
-button.opt:not(:disabled) > .mini{background:var(--ac);border-color:var(--ac);color:#fff}
+button.opt:not(:disabled) > .mini,.rvb:not(:disabled){background:var(--ac);border-color:var(--ac);color:#fff}
 </style>
 </head>
 <body>
@@ -174,14 +189,16 @@ button.opt:not(:disabled) > .mini{background:var(--ac);border-color:var(--ac);co
 <div id="sheet3"><div class="dwrap"><div class="bar"><button id="x3">Done</button><button id="bk" style="display:none">Back</button></div><div id="st"></div></div></div>
 <script>
 const API='https://site.api.espn.com/apis/site/v2/sports/';
-const COMP={'eng.1':'Premier League','uefa.champions':'Champions League','eng.fa':'FA Cup','eng.league_cup':'EFL Cup',nfl:'NFL',nba:'NBA',mlb:'MLB',nhl:'NHL'};
+const COMP={'eng.1':'Premier League','uefa.champions':'Champions League','eng.fa':'FA Cup','eng.league_cup':'EFL Cup',nfl:'NFL',nba:'NBA',mlb:'MLB',nhl:'NHL','college-football':'NCAA Football','mens-college-basketball':"NCAA Men's Basketball",'267979':'Gallagher Premiership',wnba:'WNBA'};
 // Sports the picker offers. soccer leagues are selected per team: a club follows its domestic league plus cups.
 const SPORTS={
  soccer:{n:'Soccer',ic:'⚽',lgs:[['eng.1','Premier League'],['esp.1','La Liga'],['ger.1','Bundesliga'],['ita.1','Serie A'],['fra.1','Ligue 1'],['usa.1','MLS']]},
- football:{n:'Football',ic:'🏈',lgs:[['nfl','NFL']]},
- basketball:{n:'Basketball',ic:'🏀',lgs:[['nba','NBA']]},
+ football:{n:'Football',ic:'🏈',lgs:[['nfl','NFL'],['college-football','NCAA Football']]},
+ basketball:{n:'Basketball',ic:'🏀',lgs:[['nba','NBA'],['wnba','WNBA'],['mens-college-basketball',"NCAA Men's Basketball"]]},
  baseball:{n:'Baseball',ic:'⚾',lgs:[['mlb','MLB']]},
- hockey:{n:'Hockey',ic:'🏒',lgs:[['nhl','NHL']]}};
+ hockey:{n:'Hockey',ic:'🏒',lgs:[['nhl','NHL']]},
+ rugby:{n:'Rugby Union',ic:'🏉',lgs:[['267979','Gallagher Premiership']]}};
+const NCAA=new Set(['college-football','mens-college-basketball']);
 // Extra competitions a soccer club can play in, by domestic league.
 const SOCCER_EXTRA={'eng.1':['uefa.champions','eng.fa','eng.league_cup'],'esp.1':['uefa.champions'],'ger.1':['uefa.champions'],'ita.1':['uefa.champions'],'fra.1':['uefa.champions'],'usa.1':[]};
 Object.assign(COMP,{'esp.1':'La Liga','ger.1':'Bundesliga','ita.1':'Serie A','fra.1':'Ligue 1','usa.1':'MLS'});
@@ -207,19 +224,35 @@ function norm(e,t,lg,po){
  const sc=x=>x.score&&typeof x.score==='object'?x.score.displayValue:x.score;
  const st=c.status?.type||e.status?.type||{};const isPo=!!po||Number(e.seasonType?.type)===3;
  return{id:e.id,lg,sp:t.sp,date:e.date,state:st.state||'pre',done:!!st.completed,ppd:/postpon|cancel|suspend/i.test(st.name||''),
-  home:us.homeAway==='home',on:th.team.displayName||th.team.name,ol:th.team.logos?.[0]?.href||th.team.logo||'',
+  home:us.homeAway==='home',on:th.team.displayName||th.team.name,or:(r=>r>0&&r<=25?r:0)(th.curatedRank?.current),ol:th.team.logos?.[0]?.href||th.team.logo||'',
   us:sc(us),th:sc(th),w:us.winner===true?1:th.winner===true?-1:0,comp:(COMP[lg]||'')+(isPo?' Playoffs':''),po:isPo,wk:e.week?.number,rd:roundOf(e,c,isPo),tv:timeKnown(e,c)}}
 // ESPN flags placeholder kickoffs with timeValid:false (common for far-off baseball games, sent as a midnight-Eastern stand-in).
 // The flag is reliable, so trust it alone rather than guessing from the clock (real games can legitimately start at 00:00 UTC).
 function timeKnown(e,c){return(c.timeValid??e.timeValid)!==false}
 const clock=(d,e)=>e.tv===false?'TBA':d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
 // round label for a game: soccer cups put it in seasonType.name; NHL/NBA/NFL put it in the note headline ("East 1st Round - Game 3")
+// College headlines are long ("NCAA Men's Basketball Championship - East Region - Sweet 16", "College Football Playoff Quarterfinal at the Rose Bowl"):
+// keep the part that names the round, drop the competition name, the region and the bowl.
+function shortRound(h){
+ const t=String(h||'');
+ let m=t.match(/\b(First Four|1st Round|2nd Round|Sweet 16|Elite 8|Final Four|National Championship|Championship Game|First Round|Second Round|Quarterfinal|Semifinal)s?\b/i);
+ if(/College Football Playoff|NCAA .*Championship/i.test(t)&&m){const r=m[1];return/^1st Round$/i.test(r)?'First Round':/^2nd Round$/i.test(r)?'Second Round':r.replace(/^\w/,x=>x.toUpperCase())}
+ return t}
 function roundOf(e,c,isPo){
  const h=(c.notes||[]).map(n=>n.headline||'').find(x=>/round|final|wild card|divisional|championship|super bowl|semi|quarter|leg/i.test(x)&&!/advance|win .* on pen/i.test(x));
  const st=e.seasonType?.name||'';
+ if(h&&/College Football Playoff|NCAA .*Championship/i.test(h))return shortRound(h);
  if(h)return h.replace(/\s*-\s*(Game|Leg)\s*\d+.*$/i,'').replace(/^\d(st|nd) Leg.*$/i,st).trim()||st;
  return /round|final|leg|knockout/i.test(st)?st:''}
+// Rugby: ESPN has no per-club schedule, so read the league scoreboard for last year, this year and next, and keep this club's games.
+async function fetchRugby(t){
+ const y=new Date().getFullYear(),lg=t.lg[0];
+ const rs=await Promise.allSettled([y-1,y,y+1].map(n=>j(`${API}rugby/${lg}/scoreboard?dates=${n}&limit=400`)));
+ const ok=rs.filter(r=>r.status==='fulfilled');if(!ok.length)throw new Error('all failed');
+ const m={};ok.forEach(r=>(r.value.events||[]).forEach(e=>{const x=norm(e,t,lg,false);if(x)m[key(x)]=x}));
+ return Object.values(m).sort((a,b)=>new Date(a.date)-new Date(b.date))}
 async function fetchTeam(t){
+ if(t.sp==='rugby')return fetchRugby(t);
  const urls=[];
  t.lg.forEach(lg=>{const b=`${API}${t.sp}/${lg}/teams/${t.id}/schedule`;
   if(t.sp==='soccer')urls.push([lg,b],[lg,b+'?fixture=true']);
@@ -244,7 +277,7 @@ function row(e,next){
   if(rev.has(k)){const c=e.w>0?'W':e.w<0?'L':'D';r=`<span class="sc ${c}">${live?'<span class="live">LIVE</span>':''}${esc(e.us)}–${esc(e.th)}<em>${live?'':c}</em></span>`}
   else r=`<span class="pill rv">${live?'Live · ':''}Reveal</span>`}
  else r=`<span class="tm">${tm}</span>`;
- return`<button class="row${next?' next':''}" data-k="${esc(k)}"><div class="dt"><b>${wd}</b>${dd}</div><div class="mid">${e.ol?`<img src="${esc(e.ol)}" alt="" onerror="this.remove()">`:''}<div><b>${e.home?'vs':'at'} ${esc(e.on)}</b><span>${esc(e.comp)}${e.wk?' · Wk '+e.wk:''}</span></div></div>${r}</button>`}
+ return`<button class="row${next?' next':''}" data-k="${esc(k)}"><div class="dt"><b>${wd}</b>${dd}</div><div class="mid">${e.ol?`<img src="${esc(e.ol)}" alt="" onerror="this.remove()">`:''}<div><b>${e.home?'vs':'at'} ${e.or?`<small class="rk">#${e.or}</small> `:''}${esc(e.on)}</b><span>${esc(e.comp)}${e.wk?' · Wk '+e.wk:''}</span></div></div>${r}</button>`}
 let view=ls.get('ft_view','up');
 const pin={};
 function updatePins(){TEAMS.forEach(t=>{const D=data[t.k];if(!D)return;
@@ -253,6 +286,18 @@ function updatePins(){TEAMS.forEach(t=>{const D=data[t.k];if(!D)return;
  pin[t.k]=last&&!rev.has(key(last))?key(last):null})}
 $('#list').addEventListener('click',e=>{const b=e.target.closest('[data-v]');if(b){view=b.dataset.v;ls.set('ft_view',view);render()}
  if(e.target.closest('#pick')){openSettings();sv='sports';renderSettings()}});
+// the nickname for a followed team: "Boston Celtics" -> "Celtics", soccer clubs keep ESPN's short club name when we've learned one
+const tabShort=t=>t.sn||t.n;
+function fitTabs(){
+ document.querySelectorAll('#tabs .tab>span:not(.hint)').forEach(s=>{s.textContent=s.dataset.f;if(s.scrollWidth>s.clientWidth+1&&s.dataset.s&&s.dataset.s!==s.dataset.f)s.textContent=s.dataset.s})}
+let fitT=0;addEventListener('resize',()=>{clearTimeout(fitT);fitT=setTimeout(fitTabs,80)});
+async function backfillShort(){
+ const need=TEAMS.filter(t=>!t.sn);if(!need.length)return;
+ const lgs=[...new Set(need.map(t=>t.sp+'|'+t.lg[0]))];let changed=false;
+ await Promise.all(lgs.map(async k=>{const[sp,lg]=k.split('|');try{
+  const L=await loadTeams(sp,lg);
+  need.filter(t=>t.sp===sp&&t.lg[0]===lg).forEach(t=>{const o=L.find(x=>String(x.id)===String(t.id));if(o&&o.s){t.sn=o.s;changed=true}})}catch{}}));
+ if(changed){saveTeams();render()}}
 function render(){
  const t=TEAMS.find(x=>x.k===cur);
  if(!t){
@@ -261,7 +306,8 @@ function render(){
   $('#list').innerHTML=`<div class="empty"><div class="eic">🏆</div><h2>Pick your teams</h2><p>Follow your teams to see their fixtures and results here. Scores stay hidden until you reveal them.</p><button class="cta" id="pick">Choose teams</button></div>`;
   return}
  document.documentElement.style.setProperty('--ac',t.c);
- $('#tabs').innerHTML=TEAMS.map(x=>`<button class="tab${x.k===cur?' on':''}" style="--c:${x.c}" data-t="${x.k}"><i></i><span>${esc(x.n)}</span>${x.k===cur?'<span class="hint">▤</span>':''}</button>`).join('');
+ $('#tabs').innerHTML=TEAMS.map(x=>`<button class="tab${x.k===cur?' on':''}" style="--c:${x.c}" data-t="${x.k}"><i class="${ringFor(x.c).trim()}"></i><span data-f="${esc(x.n)}" data-s="${esc(tabShort(x))}">${esc(x.n)}</span>${x.k===cur?'<span class="hint">▤</span>':''}</button>`).join('');
+ fitTabs();
  const D=data[t.k];$('#sync').textContent=ago(D?.ts);
  let h=failed?'<div class="note">Couldn’t reach the schedule service. Showing what’s saved on this device.</div>':'';
  if(!D)h+=`<div class="note">${busy?'Loading schedule…':'No schedule saved yet. Tap Refresh while online.'}</div>`;
@@ -286,6 +332,14 @@ const allRevealed=t=>{const F=finished(t);return F.length>0&&F.every(e=>rev.has(
 const saveTeams=()=>ls.set('ft_teams',TEAMS);
 function openSettings(){sv='main';$('#sheet3').classList.add('open');$('#sheet3').scrollTop=0;renderSettings()}
 function closeSettings(){$('#sheet3').classList.remove('open');updatePins();render()}
+// A thin ring in the opposite theme color, only when the dot would melt into the card behind it: WCAG contrast ratio under 1.6
+// (Iowa black = 1.0 and Penn State navy = 1.1 on the dark card; crimson = 2.1 is fine and gets none). Checked against the current theme.
+const rl=c=>{const f=v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)};return .2126*f(parseInt(c.slice(1,3),16))+.7152*f(parseInt(c.slice(3,5),16))+.0722*f(parseInt(c.slice(5,7),16))};
+const ringFor=c=>{if(!/^#[0-9a-f]{6}$/i.test(c||''))return'';const bg=document.documentElement.dataset.theme==='dark'?'#1d2026':'#ffffff',a=rl(c),b=rl(bg),r=(Math.max(a,b)+.05)/(Math.min(a,b)+.05);return r<1.6?' ring':''};
+let dotK='';
+const SWATCH=['#e03a3a','#e8591a','#f0a81a','#d6c21f','#4ba84b','#1fa8a8','#2a6fd6','#4a4ac8','#8a5cd6','#c23b8a','#5c7a8a','#16181d'];
+function dotPicker(t){
+ return`<div class="swatches">${SWATCH.map(c=>`<button class="sw${c===t.c?' on':''}" data-a="setc" data-k="${esc(t.k)}" data-c="${c}" style="background:${c}" aria-label="${c}"></button>`).join('')}</div>`}
 function renderSettings(){
  const dark=document.documentElement.dataset.theme==='dark',bk=$('#bk');
  bk.style.display=sv==='main'?'none':'';$('#x3').textContent=sv==='main'?'Done':'Done';
@@ -293,8 +347,8 @@ function renderSettings(){
   $('#st').innerHTML=`<h1 class="sh">Settings</h1>
    <div class="pl"><button class="opt" data-a="theme"><span>Dark mode</span><span class="tg${dark?' on':''}"></span></button></div>
    <h3>Reveal all results</h3>
-   <div class="pl">${TEAMS.length?TEAMS.map(t=>{const n=finished(t).filter(e=>!rev.has(key(e))).length;return`<button class="opt" data-a="rv" data-k="${esc(t.k)}"${n?'':' disabled'}><span class="tl"><i style="background:${t.c}"></i><b>${esc(t.n)}</b></span><span class="mini">${n?`Reveal ${n}`:'All revealed'}</span></button>`}).join(''):'<div class="note" style="margin:8px 0">Follow a team to see it here.</div>'}</div>
-   <div class="note">Reveals every result that has already finished, once. Games that finish later stay hidden until you reveal them.</div>
+   <div class="pl">${TEAMS.length?TEAMS.map(t=>{const n=finished(t).filter(e=>!rev.has(key(e))).length;return`<div class="swr" data-k="${esc(t.k)}"><button class="swdel" data-a="rm" data-k="${esc(t.k)}">Remove</button><div class="opt swrow"><span class="tl"><button class="dotb" data-a="dot" data-k="${esc(t.k)}" aria-label="Change color for ${esc(t.n)}"><i class="dot${ringFor(t.c)}" style="background:${t.c}"></i></button><b>${esc(t.n)}</b></span><button class="mini rvb" data-a="rv" data-k="${esc(t.k)}"${n?'':' disabled'}>${n?`Reveal ${n}`:'All revealed'}</button></div></div>${dotK===t.k?dotPicker(t):''}`}).join(''):'<div class="note" style="margin:8px 0">Follow a team to see it here.</div>'}</div>
+   <div class="note">Reveals every result that has already finished, once. Games that finish later stay hidden until you reveal them. Tap a color dot to change it; swipe a team left to remove it.</div>
    <h3>Teams</h3>
    <div class="pl"><button class="opt" data-a="teams"><span>Choose teams to follow<small>${TEAMS.length} followed</small></span><span class="go">›</span></button></div>
    <div class="cred">
@@ -303,9 +357,7 @@ function renderSettings(){
     <p class="fine">Not affiliated with or endorsed by ESPN or any league or team. Feeds can change or disappear without notice, and data may be delayed or wrong.</p>
    </div>`}
  else if(sv==='sports'){
-  $('#st').innerHTML=`<h1 class="sh">Your teams</h1>
-   <div class="pl">${TEAMS.map(t=>`<div class="opt"><span class="tl"><i style="background:${t.c}"></i><b>${esc(t.n)}</b><small>${esc(SPORTS[t.sp].n)}</small></span><button class="mini" data-a="rm" data-k="${esc(t.k)}">Remove</button></div>`).join('')||'<div class="note" style="margin:8px 0">No teams yet.</div>'}</div>
-   <h3>Add a team</h3>
+  $('#st').innerHTML=`<h1 class="sh">Add a team</h1>
    <div class="pl">${Object.entries(SPORTS).map(([k,s])=>`<button class="opt" data-a="sport" data-s="${k}"><span>${s.ic} ${esc(s.n)}</span><span class="go">›</span></button>`).join('')}</div>`}
  else if(sv==='league'){
   const S=SPORTS[pSport];
@@ -331,13 +383,13 @@ async function loadTeams(sp,lg){
  try{
   const d=await j(`${SAPI}${sp}/${lg}/standings`),seen=new Set();
   (function w(n){(n.standings?.entries||[]).forEach(e=>{const t=e.team;if(!t||seen.has(String(t.id)))return;seen.add(String(t.id));
-    L.push({id:String(t.id),n:t.displayName||t.shortDisplayName||t.name,l:t.logos?.[0]?.href||'',c:'',a:''})});(n.children||[]).forEach(w)})(d)}catch{}
+    L.push({id:String(t.id),n:t.displayName||t.shortDisplayName||t.name,s:t.shortDisplayName||'',l:t.logos?.[0]?.href||'',c:'',a:''})});(n.children||[]).forEach(w)})(d)}catch{}
  try{
-  const d=await j(`${API}${sp}/${lg}/teams?limit=100&lang=en`),by={};
+  const d=await j(`${API}${sp}/${lg}/teams?limit=1000&lang=en`),by={};
   (d.sports?.[0]?.leagues?.[0]?.teams||[]).forEach(x=>{const t=x.team;if(t)by[String(t.id)]=t});
-  L.forEach(t=>{const o=by[t.id];if(o){t.c=o.color?'#'+o.color:'';t.a=o.alternateColor?'#'+o.alternateColor:''}})}catch{}
- if(L.length){L.sort((a,b)=>a.n.localeCompare(b.n));ls.set(ck,L);return L}
- return ls.get(ck,[])}
+  L.forEach(t=>{const o=by[t.id];if(o){t.c=o.color?'#'+o.color:'';t.a=o.alternateColor?'#'+o.alternateColor:'';t.s=o.shortDisplayName||''}})}catch{}
+ if(L.length){L.sort((a,b)=>a.n.localeCompare(b.n));if(L.some(t=>t.c))ls.set(ck,L);return L}
+ const old=ls.get(ck,[]);return old.length?old:L}
 // ---- team colors ----
 // Hand-picked club colors (where ESPN's feed gives white/black/neon) so the tab matches the club's recognizable color.
 const BRAND={
@@ -357,23 +409,32 @@ const BRAND={
  'nhl:8':'#a2aaad','nhl:124292':'#68a2b9','nhl:16':'#fcb514','nhl:129764':'#71afe5'};
 const lum=h=>{const r=parseInt(h.slice(1,3),16)/255,g=parseInt(h.slice(3,5),16)/255,b=parseInt(h.slice(5,7),16)/255;return .2126*r+.7152*g+.0722*b};
 const sat=h=>{const r=parseInt(h.slice(1,3),16)/255,g=parseInt(h.slice(3,5),16)/255,b=parseInt(h.slice(5,7),16)/255,mx=Math.max(r,g,b),mn=Math.min(r,g,b);return mx?(mx-mn)/mx:0};
-const okCol=h=>/^#[0-9a-f]{6}$/i.test(h||'')&&lum(h)>=.14&&lum(h)<=.80&&sat(h)>=.25;
-// order: hand-picked brand color → ESPN primary (if readable) → ESPN alternate (if readable) → unused palette color
-function pickColor(sp,t,used){
- const lg={football:'nfl',basketball:'nba',baseball:'mlb',hockey:'nhl'}[sp];
- const b=sp==='soccer'?BRAND[Number(t.id)]:BRAND[lg+':'+t.id];
- let c=/^#[0-9a-f]{6}$/i.test(b||'')?b:[t.c,t.a].find(okCol);
+// Reference color for a school ESPN sends no color for at all (teamcolorcodes.com's NCAA page; id is ESPN's). Used only when ESPN has nothing.
+const SITE_NCAA={2130:'#006666'};
+function pickColor(sp,t,used,league){
+ const lg=league?(NCAA.has(league)?'ncaa':league==='wnba'?'wnba':league==='267979'?'rugby':['nfl','nba','mlb','nhl'].includes(league)?league:''):{football:'nfl',basketball:'nba',baseball:'mlb',hockey:'nhl'}[sp];
+ const b=sp==='soccer'?BRAND[Number(t.id)]:lg?BRAND[lg+':'+t.id]:'';
+ // order: hand-picked pro/soccer color -> ESPN's primary color exactly as sent -> (only if ESPN sent none) ESPN's alternate -> reference-site color -> generic palette
+ // a color needs to be a real hex, and not white/near-white (a white tab or white selected button would vanish); black and dark colors are kept
+ const hex=h=>/^#[0-9a-f]{6}$/i.test(h||'')&&lum(h)<.85;
+ let c=hex(b)?b:hex(t.c)?t.c:hex(t.a)?t.a:'';
+ if(!c&&NCAA.has(league)&&SITE_NCAA[t.id])c=SITE_NCAA[t.id];
  if(!c)c=PAL.find(p=>!used.has(p))||PAL[used.size%PAL.length];
  return c}
 // build a followed-team record. Soccer clubs follow their league plus its usual cups/Europe.
 function mkTeam(sp,lg,t){
- const k=`${sp}:${lg}:${t.id}`,used=new Set(TEAMS.map(x=>x.c)),c=pickColor(sp,t,used);
- return{k,n:t.n,id:Number(t.id),sp,lg:sp==='soccer'?[lg,...(SOCCER_EXTRA[lg]||[])]:[lg],c}}
+ const k=`${sp}:${lg}:${t.id}`,used=new Set(TEAMS.map(x=>x.c)),c=pickColor(sp,t,used,lg);
+ return{k,n:t.n,sn:t.s||'',id:Number(t.id),sp,lg:sp==='soccer'?[lg,...(SOCCER_EXTRA[lg]||[])]:[lg],c}}
+// ESPN's own record for one team (color, alternate color, short name). Used when the picker list came without them.
+async function teamInfo(sp,lg,id){
+ try{const d=await j(`${API}${sp}/${lg}/teams/${id}`),t=d.team||{};
+  return{c:t.color?'#'+t.color:'',a:t.alternateColor?'#'+t.alternateColor:'',s:t.shortDisplayName||''}}catch{return null}}
 function toggleTeam(id){
  const t=pList.find(x=>String(x.id)===String(id));if(!t)return;
  const i=TEAMS.findIndex(x=>x.sp===pSport&&String(x.id)===String(id)&&x.lg[0]===pLg);
  if(i>=0){removeTeam(TEAMS[i].k)}
- else{const nt=mkTeam(pSport,pLg,t);TEAMS.push(nt);saveTeams();if(!TEAMS.some(x=>x.k===cur)||!cur){cur=nt.k;ls.set('ft_tab',cur)}refresh()}
+ else{const nt=mkTeam(pSport,pLg,t);TEAMS.push(nt);saveTeams();
+  if(!t.c&&!t.a)teamInfo(pSport,pLg,t.id).then(i=>{if(!i)return;const m=TEAMS.find(x=>x.k===nt.k);if(!m)return;m.c=pickColor(pSport,{id:t.id,c:i.c,a:i.a},new Set(TEAMS.filter(x=>x!==m).map(x=>x.c)),pLg);if(i.s)m.sn=i.s;saveTeams();render()});if(!TEAMS.some(x=>x.k===cur)||!cur){cur=nt.k;ls.set('ft_tab',cur)}refresh()}
  renderSettings()}
 function removeTeam(k){
  TEAMS=TEAMS.filter(t=>t.k!==k);saveTeams();delete data[k];ls.set('ft_data',data);
@@ -385,6 +446,8 @@ $('#st').addEventListener('click',e=>{
  else if(a==='rv'){const t=TEAMS.find(x=>x.k===b.dataset.k);if(!t)return;
   finished(t).forEach(e=>rev.add(key(e)));
   ls.set('ft_rev',[...rev]);updatePins();renderSettings()}
+ else if(a==='dot'){e.stopPropagation();dotK=dotK===b.dataset.k?'':b.dataset.k;renderSettings()}
+ else if(a==='setc'){const t=TEAMS.find(x=>x.k===b.dataset.k);if(t){t.c=b.dataset.c;saveTeams()}dotK='';renderSettings()}
  else if(a==='teams'){sv='sports';renderSettings()}
  else if(a==='rm'){removeTeam(b.dataset.k);renderSettings()}
  else if(a==='sport'){pSport=b.dataset.s;const S=SPORTS[pSport];
@@ -392,6 +455,14 @@ $('#st').addEventListener('click',e=>{
  else if(a==='lg'){pLg=b.dataset.l;pList=null;pQ='';sv='picker';renderSettings()}
  else if(a==='tm')toggleTeam(b.dataset.id)});
 $('#st').addEventListener('input',e=>{if(e.target.id==='q'){pQ=e.target.value;renderPicker()}});
+{let sx=0,sy=0,row=null,dx=0,lock='';
+ const closeAll=except=>document.querySelectorAll('#st .swr.open').forEach(r=>{if(r!==except)r.classList.remove('open')});
+ $('#st').addEventListener('touchstart',e=>{const r=e.target.closest?.('.swr');row=r||null;if(!r){closeAll(null);return}
+  sx=e.touches[0].clientX;sy=e.touches[0].clientY;dx=0;lock='';closeAll(r)},{passive:true});
+ $('#st').addEventListener('touchmove',e=>{if(!row)return;const x=e.touches[0].clientX-sx,y=e.touches[0].clientY-sy;
+  if(!lock){if(Math.abs(x)<8&&Math.abs(y)<8)return;lock=Math.abs(x)>Math.abs(y)*1.5?'h':'v'}
+  if(lock==='h')dx=x},{passive:true});
+ $('#st').addEventListener('touchend',()=>{if(!row)return;if(lock==='h'){if(dx<-40)row.classList.add('open');else if(dx>25)row.classList.remove('open')}row=null})}
 $('#bk').onclick=()=>{
  if(sv==='picker')sv=SPORTS[pSport].lgs.length===1?'sports':'league';
  else if(sv==='league')sv='sports';else sv='main';
@@ -426,9 +497,9 @@ $('#x').onclick=()=>{$('#sheet').classList.remove('open')};
 // Tapping a player's name opens a profile on top of everything: portrait, bio, this season's line, past seasons, and recent games.
 // Three small requests to ESPN (bio, season line + recent games, past seasons), made only when a player is tapped and saved on the phone.
 const PAPI='https://site.api.espn.com/apis/common/v3/sports/';
-const PSPORT={soccer:'soccer',football:'football',basketball:'basketball',baseball:'baseball',hockey:'hockey'};
+const PSPORT={soccer:'soccer',football:'football',basketball:'basketball',baseball:'baseball',hockey:'hockey',rugby:'rugby'};
 let pfTok=0;
-const pfPath=(sp,lg)=>sp==='soccer'?`soccer/${lg||'eng.1'}`:`${sp}/${{football:'nfl',basketball:'nba',baseball:'mlb',hockey:'nhl'}[sp]}`;
+const pfPath=(sp,lg)=>sp==='soccer'?`soccer/${lg||'eng.1'}`:`${sp}/${lg||{football:'nfl',basketball:'nba',baseball:'mlb',hockey:'nhl'}[sp]}`;
 async function getPlayer(sp,lg,id){
  const ck=`ft_p_${sp}_${id}`,c=ls.get(ck,null);
  const fresh=c&&Date.now()-c.ts<6*36e5;if(fresh)return c;
@@ -442,17 +513,25 @@ async function getPlayer(sp,lg,id){
  ls.set(ck,out);return out}
 const initials=n=>String(n||'?').split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase();
 const cell=v=>esc(v==null||v===''?'–':v);
-// ESPN sends dates of birth as day/month/year for every sport; the app shows them US-style, month/day/year.
-const usDate=d=>{const m=String(d||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);return m?`${+m[2]}/${+m[1]}/${m[3]}`:(d||'')};
+// Dates of birth follow the phone's own region setting (US 9/26/2001, UK 26/09/2001, ISO-style regions 2001-09-26).
+// ESPN sends them as day/month/year text ("26/9/2001") for most sports, or an ISO timestamp for rugby, so both are read, then re-formatted locally.
+const usDate=d=>{
+ let y,m,dd;const t=String(d||'');
+ let x=t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(x){dd=+x[1];m=+x[2];y=+x[3]}
+ else if(x=t.match(/^(\d{4})-(\d{2})-(\d{2})/)){y=+x[1];m=+x[2];dd=+x[3]}
+ else return t;
+ try{return new Date(Date.UTC(y,m-1,dd)).toLocaleDateString(undefined,{year:'numeric',month:'numeric',day:'numeric',timeZone:'UTC'})}catch{return`${m}/${dd}/${y}`}};
 function bioBlock(a){
  if(!a)return'';
  // soccer gives a nationality; the US sports give a birthplace ("Palmdale, CA") instead
  const from=a.citizenship||a.displayBirthPlace||a.birthPlace?.country||'';
- const items=[['Age',a.age],['Height',a.displayHeight],['Weight',a.displayWeight],['Born',usDate(a.displayDOB)],['From',from]].filter(x=>x[1]);
+ // college athletes: ESPN gives class year (Freshman…Senior) and hometown, no date of birth
+ const col=NCAA.has(curEv?.lg),cls=a.displayExperience||a.experience?.displayValue||'';
+ const items=(col?[['Class',cls],['Height',a.displayHeight],['Weight',a.displayWeight],['Hometown',from]]:[['Age',a.age],['Height',a.displayHeight],['Weight',a.displayWeight],['Born',usDate(a.displayDOB||a.dateOfBirth)],['From',from]]).filter(x=>x[1]);
  // sixth box (only when ESPN has one): hockey shooting hand, or baseball bats/throws
  const hand=a.hand?.displayValue,bt=a.displayBatsThrows;
  if(bt)items.push(['Bats / Throws',bt]);else if(hand)items.push(['Shoots',hand]);
- return items.length?`<div class="bio${items.length===5?' b5':''}">${items.slice(0,6).map(x=>`<div><b>${esc(x[1])}</b><span>${esc(x[0])}</span></div>`).join('')}</div>`:''}
+ return items.length?`<div class="bio${items.length===5?' b5':items.length===4?' b4':''}">${items.slice(0,6).map(x=>`<div><b>${esc(x[1])}</b><span>${esc(x[0])}</span></div>`).join('')}</div>`:''}
 // a stats table: first column = row name, then one column per stat label
 function statTable(labels,rows,cls){
  if(!labels?.length||!rows?.length)return'';
@@ -518,7 +597,7 @@ async function openDetail(e,fromStand){
   // page opens immediately. Soccer: team xG is looked up in the background and, if it exists, added as one more row of the
   // Team stats table (right under Goals). No placeholder, no separate section: if it never arrives, nothing is there to remove.
   const cached_x=e.sp==='soccer'?ls.get('ft_x_'+key(e),null):null;
-  $('#det').innerHTML=head(d,e)+(e.sp==='soccer'?soccer(d,e,cached_x):e.sp==='football'?nfl(d):e.sp==='baseball'?mlb(d):e.sp==='hockey'?nhl(d):nba(d));
+  $('#det').innerHTML=head(d,e)+(e.sp==='soccer'?soccer(d,e,cached_x):e.sp==='football'?nfl(d):e.sp==='baseball'?mlb(d):e.sp==='hockey'?nhl(d):e.sp==='rugby'?rugby(d):nba(d));
   if(e.sp==='soccer'&&!cached_x)teamXg(e,(d.header?.competitions?.[0]?.competitors||[]).map(c=>c.team).filter(Boolean)).then(X=>slotXg(e,d,X)).catch(()=>{});
  }catch{$('#det').innerHTML='<div class="note">Couldn’t load match details. Check your connection and tap the result again.</div>'}}
 // Team xG (sum of every shot's expected-goals value) from ESPN's team stats feed: one small request per team.
@@ -545,15 +624,16 @@ function slotXg(e,d,X){
  goals.after(row)}
 function head(d,e){
  const cs=d.header?.competitions?.[0]?.competitors;if(!cs)return'';
- const o=e.sp==='soccer'?cs.slice().sort(a=>a.homeAway==='home'?-1:1):cs.slice().sort(a=>a.homeAway==='away'?-1:1);
+ const o=e.sp==='soccer'||e.sp==='rugby'?cs.slice().sort(a=>a.homeAway==='home'?-1:1):cs.slice().sort(a=>a.homeAway==='away'?-1:1);
  const sc=x=>x.score&&typeof x.score==='object'?x.score.displayValue:x.score;
- const tm=x=>`<div>${x.team?.logos?.[0]?.href?`<img src="${esc(x.team.logos[0].href)}" alt="" onerror="this.remove()">`:''}${esc(x.team?.displayName)}</div>`;
+ const rk=x=>{const r=x.rank??x.curatedRank?.current;return r>0&&r<=25?`<small class="rk">#${r}</small> `:''};
+ const tm=x=>`<div>${x.team?.logos?.[0]?.href?`<img src="${esc(x.team.logos[0].href)}" alt="" onerror="this.remove()">`:''}${rk(x)}${esc(x.team?.displayName)}</div>`;
  let h=`<div class="big">${tm(o[0])}<span class="n">${esc(sc(o[0]))}–${esc(sc(o[1]))}</span>${tm(o[1])}</div>`;
  h+=`<div class="meta">${esc(new Date(e.date).toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric',year:'numeric'}))} · ${esc(e.comp)}</div>`;
  if(e.sp!=='soccer'&&o[0].linescores?.length){
   const n=o[0].linescores.length;
   // column labels per sport: innings (extras numbered), periods (OT/SO), or quarters (OT)
-  const lab=i=>e.sp==='baseball'?String(i+1):e.sp==='hockey'?(i<3?String(i+1):i===3?'OT':'SO'):(i<4?'Q'+(i+1):'OT');
+  const lab=i=>e.sp==='rugby'?(i===0?'1H':i===1?'2H':'ET'):e.sp==='baseball'?String(i+1):e.sp==='hockey'?(i<3?String(i+1):i===3?'OT':'SO'):(i<4?'Q'+(i+1):'OT');
   h+=`<div class="tw"><table><tr><th></th>${o[0].linescores.map((_,i)=>`<th>${lab(i)}</th>`).join('')}<th>T</th></tr>`+o.map(x=>`<tr><td>${esc(x.team?.abbreviation)}</td>${(x.linescores||[]).slice(0,n).map(l=>`<td>${esc(l.displayValue)}</td>`).join('')}<td><b>${esc(sc(x))}</b></td></tr>`).join('')+'</table></div>'}
  return h}
 function stats(ts,n,pre){
@@ -575,7 +655,7 @@ const pl=p=>{
 function lineColor(t){
  if(!t)return'var(--ac)';
  const sp=curEv?.sp||'soccer',mine=TEAMS.find(x=>x.sp===sp&&String(x.id)===String(t.id));if(mine)return mine.c;
- return pickColor(sp,{id:t.id,c:t.color?'#'+t.color:'',a:t.alternateColor?'#'+t.alternateColor:''},new Set())}
+ return pickColor(sp,{id:t.id,c:t.color?'#'+t.color:'',a:t.alternateColor?'#'+t.alternateColor:''},new Set(),curEv?.lg)}
 // A team toggle + the body for the selected team. Every sport's page reuses this.
 //  tabs: [{team:{id,...}, label, sub}] ; body(i) returns the HTML for tab i. State lives in tgSel[group] and is reset when a match opens.
 let tgSel={},tgDef={};
@@ -591,22 +671,19 @@ const evRow=(tag,text,sub,html)=>`<div class="ev"><b>${esc(tag)}</b><span>${html
 // Short tab label. US leagues: the nickname ("Chicago Bears" -> "Bears", "Boston Red Sox" -> "Red Sox").
 // Soccer: ESPN's own short club name ("Leeds", "Hull", "Man City", "Man Utd"); if that is missing, the full club name. Never a last-word guess
 // ("United", "City" and "Town" mean different clubs).
-const NICK2=new Set(['Red Sox','White Sox','Blue Jays','Trail Blazers','Maple Leafs','Blue Jackets','Golden Knights','Red Wings']);
+// Short tab label: ESPN's own short name for the team ("Red Sox", "Blue Jackets", "Alabama", "Man City"). If ESPN sends none, the full name.
+// Never a last-word guess: that turns "Alabama Crimson Tide" into "Tide" and "Boston Red Sox" into "Sox".
 let shortById={};
-function shortName(t,soccer){
+function shortName(t){
  if(!t)return'';
- if(soccer)return shortById[String(t.id)]||t.shortDisplayName||t.displayName||t.abbreviation||'';
- if(t.shortDisplayName)return t.shortDisplayName;
- const n=t.displayName||t.name||t.abbreviation||'',w=n.split(' ');
- if(w.length<3)return w.length===2?w[1]:n;
- const two=w.slice(-2).join(' ');return NICK2.has(two)?two:w[w.length-1]}
+ return shortById[String(t.id)]||t.shortDisplayName||t.displayName||t.name||t.abbreviation||''}
 // collect the short names ESPN gives in the match header (the lineup data itself has none)
-const learnShorts=d=>{shortById={};(d.header?.competitions?.[0]?.competitors||[]).forEach(c=>{if(c.team?.id&&c.team.shortDisplayName)shortById[String(c.team.id)]=c.team.shortDisplayName})};
+const learnShorts=d=>{shortById={};[...(d.header?.competitions?.[0]?.competitors||[]),...(d.boxscore?.teams||[])].forEach(c=>{if(c.team?.id&&c.team.shortDisplayName)shortById[String(c.team.id)]=c.team.shortDisplayName})};
 const byHome=(a,b)=>(a.homeAway==='home'?0:1)-(b.homeAway==='home'?0:1);
 const leadersFor=t=>!t?'':'<div class="pl">'+(t.leaders||[]).map(c=>{const l=c.leaders?.[0];return l?`<div class="ld"><span>${esc(c.displayName)}</span><b>${pname(l.athlete)} · ${esc(l.displayValue)}</b></div>`:''}).join('')+'</div>';
 // the two competitors of the match, home first (soccer/baseball/hockey/basketball all list home before away on the page)
 const sides=d=>(d.header?.competitions?.[0]?.competitors||[]).slice().sort(byHome).map(c=>c.team).filter(Boolean);
-const tabsFor=d=>sides(d).map(t=>({team:t,label:shortName(t,curEv?.sp==='soccer'),sub:''}));
+const tabsFor=d=>sides(d).map(t=>({team:t,label:shortName(t),sub:''}));
 const forTeam=(arr,t,get)=>(arr||[]).filter(x=>String(get(x))===String(t.id));
 // scoring + leaders for one team (football/hockey/baseball): only that team's scoring plays and that team's leaders
 // Every player in the box score, so names written in a scoring play can be turned back into tappable links.
@@ -654,7 +731,7 @@ function soccer(d,e,X){
  let h='';learnShorts(d);
  const rs=(d.rosters||[]).slice().sort(byHome);
  tgSel={};
- if(rs.length)h+='<h3>Lineups</h3>'+toggled('ln',rs.map(x=>({team:x.team,label:shortName(x.team,true),sub:typeof x.formation==='string'?x.formation:''})),i=>lineup(rs,i));
+ if(rs.length)h+='<h3>Lineups</h3>'+toggled('ln',rs.map(x=>({team:x.team,label:shortName(x.team),sub:typeof x.formation==='string'?x.formation:''})),i=>lineup(rs,i));
  // Goals first in Team stats (the scoreline is far up the page by then). Order matches the stats block: home, then away.
  const cs=d.header?.competitions?.[0]?.competitors||[],ts=d.boxscore?.teams||[];
  const sc=id=>{const c=cs.find(x=>String(x.team?.id)===String(id));return c?(c.score&&typeof c.score==='object'?c.score.displayValue:c.score):''};
@@ -662,20 +739,31 @@ function soccer(d,e,X){
  const xg=X&&ts.length>=2&&X[ts[0].team?.id]!=null&&X[ts[1].team?.id]!=null?['xG',X[ts[0].team.id].toFixed(2),X[ts[1].team.id].toFixed(2)]:null;
  return h+stats(d.boxscore?.teams,10,[goals,xg].filter(Boolean))}
 
+// ---------- rugby ----------
+// ESPN publishes only the two squads for rugby (15 starters + 8 replacements each): no box score, no scoring list, no team stats.
+function rugby(d){
+ learnShorts(d);tgSel={};
+ const rs=(d.rosters||[]).slice().sort(byHome);
+ if(!rs.length)return'<div class="note">Match details aren’t published for this game.</div>';
+ const body=i=>{const r=rs[i]||rs[0],L=(r.roster||[]).slice().sort((a,b)=>(+a.jersey||99)-(+b.jersey||99)),st=L.filter(p=>+p.jersey>=1&&+p.jersey<=15),sb=L.filter(p=>+p.jersey>15);
+  const row=p=>`<div class="p"><i>${esc(p.jersey||'')}</i><span>${esc(p.athlete?.displayName||'')}${p.captain?' <small class="rk">(C)</small>':''}</span><em>${esc(p.position?.abbreviation||'')}${p.subbedOut?' ↓':''}${p.subbedIn?' ↑':''}</em></div>`;
+  return(st.length?'<div class="pl">'+st.map(row).join('')+'</div>':'')+(sb.length?'<h4>Replacements</h4><div class="pl">'+sb.map(row).join('')+'</div>':'')+(!L.length?'<div class="note">Lineup not available.</div>':'')};
+ return'<h3>Lineups</h3>'+toggled('ln',rs.map(x=>({team:x.team,label:shortName(x.team),sub:''})),body)}
+
 // ---------- football ----------
 function nfl(d){
- tgSel={};
+ learnShorts(d);tgSel={};
  const plays=(d.scoringPlays||[]).map(x=>x);
  return scoreAndLeaders(d,plays,x=>`Q${x.period?.number} ${x.clock?.displayValue||''}`,'sl')+stats(d.boxscore?.teams,12)}
 
 // ---------- basketball ----------
 // one toggle for the two box-score tables: starters then bench for the selected team, with team stats below
 function nba(d){
- tgSel={};
+ learnShorts(d);tgSel={};
  const P=(d.boxscore?.players||[]).slice();
  const order=sides(d).map(t=>String(t.id));
  P.sort((a,b)=>order.indexOf(String(a.team?.id))-order.indexOf(String(b.team?.id)));
- const T=P.map(t=>({team:t.team,label:shortName(t.team,false),sub:''}));
+ const T=P.map(t=>({team:t.team,label:shortName(t.team),sub:''}));
  const cols=['MIN','PTS','REB','AST'];
  const tbl=(rows,ix)=>`<div class="tw"><table><tr><th>Player</th>${cols.map(c=>`<th>${c}</th>`).join('')}</tr>`+rows.map(a=>`<tr><td>${pname(a.athlete,a.athlete?.shortName||a.athlete?.displayName)}</td>${ix.map(i=>`<td>${esc(i>=0?a.stats[i]:'')}</td>`).join('')}</tr>`).join('')+'</table></div>';
  const body=i=>{const s=P[i]?.statistics?.[0];if(!s)return'<div class="note">Box score not available.</div>';
@@ -693,12 +781,12 @@ function box(d,types,t){
    A.map(a=>`<tr><td>${pname(a.athlete,a.athlete?.shortName||a.athlete?.displayName)}</td>${ix.map(i=>`<td>${esc(i>=0?a.stats[i]:'')}</td>`).join('')}</tr>`).join('')+'</table></div>'})});
  return h}
 function mlb(d){
- tgSel={};
+ learnShorts(d);tgSel={};
  const plays=(d.plays||[]).filter(p=>p.scoringPlay),T=tabsFor(d);
  if(!T.length)return stats(d.boxscore?.teams,8);
  return toggled('sl',T,i=>scoringBlock(d,T[i].team,plays,p=>(p.period?.type==='Top'?'▲':'▼')+(p.period?.number??''))+box(d,{batting:['H-AB','R','H','RBI','HR','BB','K'],pitching:['IP','H','R','ER','BB','K','HR']},T[i].team))}
 function nhl(d){
- tgSel={};
+ learnShorts(d);tgSel={};
  const plays=(d.plays||[]).filter(p=>p.scoringPlay);
  return scoreAndLeaders(d,plays,p=>(p.period?.number>3?'OT':'P'+(p.period?.number??''))+' '+(p.clock?.displayValue||''),'sl')+stats(d.boxscore?.teams,8)}
 const SAPI='https://site.api.espn.com/apis/v2/sports/';
@@ -706,12 +794,14 @@ const SAPI='https://site.api.espn.com/apis/v2/sports/';
 const CUPS=new Set(['eng.fa','eng.league_cup']);
 function ctxFor(t){
  if(t.sp==='soccer')return t.lg.map((lg,i)=>[lg,COMP[lg]||lg,CUPS.has(lg)?'p':i===0?'t':'tm']);
- const lg=t.lg[0];return[[lg,'Standings','t'],[lg+':po','Playoffs','p']]}
+ const lg=t.lg[0];if(t.sp==='rugby')return[[lg,'Table','t']];
+ return[[lg,'Standings','t'],[lg+':po',NCAA.has(lg)?'Postseason':'Playoffs','p']]}
 const COLS={soccer:[['gamesPlayed','P'],['wins','W'],['ties','D'],['losses','L'],['pointDifferential','GD'],['points','Pts']],
  football:[['wins','W'],['losses','L'],['ties','T'],['winPercent','PCT'],['pointsFor','PF'],['pointsAgainst','PA']],
  basketball:[['wins','W'],['losses','L'],['winPercent','PCT'],['gamesBehind','GB'],['streak','Strk']],
  baseball:[['wins','W'],['losses','L'],['winPercent','PCT'],['gamesBehind','GB'],['streak','Strk']],
- hockey:[['gamesPlayed','GP'],['wins','W'],['losses','L'],['otLosses','OTL'],['points','Pts'],['pointDifferential','+/-']]};
+ hockey:[['gamesPlayed','GP'],['wins','W'],['losses','L'],['otLosses','OTL'],['points','Pts'],['pointDifferential','+/-']],
+ rugby:[['gamesPlayed','P'],['gamesWon','W'],['gamesDrawn','D'],['gamesLost','L'],['pointsDifference','PD'],['bonusPoints','BP'],['points','Pts']]};
 let curEv=null,fromSt=false,sTeam=TEAMS[0]?.k||'',sCtx=TEAMS[0]?.lg[0]||'',sTok=0;
 const ctxKey=e=>e.lg+(e.po?':po':'');
 function defCtx(t){
@@ -772,14 +862,15 @@ async function renderStandings(){
  if(cx[2]==='p'){const b=bracket(t,cx[0]);$('#sd').innerHTML=hd+(b||'<div class="note">No games in this competition yet.</div>')+mt;return}
  $('#sd').innerHTML=hd+'<div class="note">Loading table…</div>'+mt;
  let gs;
- if(t.sp==='football'){const r=await Promise.all([getStand(t,cx[0],'?level=3'),getStand(t,cx[0],'')]);gs=[...(r[0]||[]),...(r[1]||[])]}
+ if(t.sp==='football'&&!NCAA.has(t.lg[0])){const r=await Promise.all([getStand(t,cx[0],'?level=3'),getStand(t,cx[0],'')]);gs=[...(r[0]||[]),...(r[1]||[])]}
  else gs=(await getStand(t,cx[0],''))||[];
  if(tok!==sTok)return;
  const seen=new Set(),mine=g=>g.rows.some(r=>r.id===String(t.id));
  gs=gs.filter(g=>!seen.has(g.name)&&seen.add(g.name));
  // football: your division, your conference, then the other conference (divisions of the other conference are left out to stay readable)
  const isConf=g=>/conference/i.test(g.name);
- gs=t.sp==='football'?[...gs.filter(g=>mine(g)&&!isConf(g)),...gs.filter(g=>mine(g)&&isConf(g)),...gs.filter(g=>!mine(g)&&isConf(g))]:[...gs.filter(mine),...gs.filter(g=>!mine(g))];
+ gs=t.sp==='football'&&!NCAA.has(t.lg[0])?[...gs.filter(g=>mine(g)&&!isConf(g)),...gs.filter(g=>mine(g)&&isConf(g)),...gs.filter(g=>!mine(g)&&isConf(g))]:[...gs.filter(mine),...gs.filter(g=>!mine(g))];
+ if(NCAA.has(t.lg[0]))gs=gs.filter(mine);
  $('#sd').innerHTML=hd+(gs.length?gs.map(g=>tbl(g,t)).join(''):'<div class="note">Couldn’t load standings. Check your connection and try again.</div>')+mt}
 $('#sd').addEventListener('click',e=>{const b=e.target.closest('[data-c]');if(b){sCtx=b.dataset.c;renderStandings()}});
 $('#sb').onclick=()=>{if(curEv)openStandings(cur,ctxKey(curEv))};
@@ -787,7 +878,7 @@ $('#x2').onclick=()=>{$('#sheet2').classList.remove('open');render()};
 // freeze the page behind an open sheet (stops the iPhone toolbar/bounce from resizing the sheet at its very bottom edge)
 {const sheets=['#sheet','#sheet2','#sheet3','#sheet4'].map(q=>$(q)),sync=()=>document.documentElement.classList.toggle('lock',sheets.some(x=>x.classList.contains('open')));
  if(typeof MutationObserver!=='undefined')sheets.forEach(x=>new MutationObserver(sync).observe(x,{attributes:true,attributeFilter:['class']}));sync()}
-updatePins();render();
+updatePins();render();backfillShort();
 {const old=Object.values(data).some(x=>Date.now()-x.ts>36e5||x.ev.some(e=>!('tv' in e)));if(TEAMS.length&&(!Object.keys(data).length||old))refresh()}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&TEAMS.length&&Object.values(data).some(x=>Date.now()-x.ts>36e5))refresh()});
 </script>
