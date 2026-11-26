@@ -224,7 +224,7 @@ function norm(e,t,lg,po){
  const sc=x=>x.score&&typeof x.score==='object'?x.score.displayValue:x.score;
  const st=c.status?.type||e.status?.type||{};const isPo=!!po||Number(e.seasonType?.type)===3;
  return{id:e.id,lg,sp:t.sp,date:e.date,state:st.state||'pre',done:!!st.completed,ppd:/postpon|cancel|suspend/i.test(st.name||''),
-  home:us.homeAway==='home',on:th.team.displayName||th.team.name,or:(r=>r>0&&r<=25?r:0)(th.curatedRank?.current),ol:th.team.logos?.[0]?.href||th.team.logo||'',
+  home:us.homeAway==='home',on:th.team.displayName||th.team.name,or:(r=>r>0&&r<=25?r:0)(th.curatedRank?.current),ol:th.team.logos?.[0]?.href||th.team.logo||fallback(lg,th.team.id)?.logo||'',
   us:sc(us),th:sc(th),w:us.winner===true?1:th.winner===true?-1:0,comp:(COMP[lg]||'')+(isPo?' Playoffs':''),po:isPo,wk:e.week?.number,rd:roundOf(e,c,isPo),tv:timeKnown(e,c)}}
 // ESPN flags placeholder kickoffs with timeValid:false (common for far-off baseball games, sent as a midnight-Eastern stand-in).
 // The flag is reliable, so trust it alone rather than guessing from the clock (real games can legitimately start at 00:00 UTC).
@@ -355,6 +355,7 @@ function renderSettings(){
     <h3>About &amp; Credits</h3>
     <p>Data comes from ESPN's public feeds, and team logos belong to the respective leagues and clubs. Your app preferences are stored only in this browser, with no accounts and no tracking. The app talks to no server other than ESPN's data feeds and image servers and the one hosting this page.</p>
     <p class="fine">Not affiliated with or endorsed by ESPN or any league or team. Feeds can change or disappear without notice, and data may be delayed or wrong.</p>
+    <p class="fine">Version ${esc(RUNNING)}</p>
    </div>`}
  else if(sv==='sports'){
   $('#st').innerHTML=`<h1 class="sh">Add a team</h1>
@@ -383,13 +384,18 @@ async function loadTeams(sp,lg){
  try{
   const d=await j(`${SAPI}${sp}/${lg}/standings`),seen=new Set();
   (function w(n){(n.standings?.entries||[]).forEach(e=>{const t=e.team;if(!t||seen.has(String(t.id)))return;seen.add(String(t.id));
-    L.push({id:String(t.id),n:t.displayName||t.shortDisplayName||t.name,s:t.shortDisplayName||'',l:t.logos?.[0]?.href||'',c:'',a:''})});(n.children||[]).forEach(w)})(d)}catch{}
+    L.push({id:String(t.id),n:t.displayName||t.shortDisplayName||t.name,s:t.shortDisplayName||'',l:t.logos?.[0]?.href||fallback(lg,t.id)?.logo||'',c:'',a:''})});(n.children||[]).forEach(w)})(d)}catch{}
  try{
   const d=await j(`${API}${sp}/${lg}/teams?limit=1000&lang=en`),by={};
   (d.sports?.[0]?.leagues?.[0]?.teams||[]).forEach(x=>{const t=x.team;if(t)by[String(t.id)]=t});
   L.forEach(t=>{const o=by[t.id];if(o){t.c=o.color?'#'+o.color:'';t.a=o.alternateColor?'#'+o.alternateColor:'';t.s=o.shortDisplayName||''}})}catch{}
  if(L.length){L.sort((a,b)=>a.n.localeCompare(b.n));if(L.some(t=>t.c))ls.set(ck,L);return L}
  const old=ls.get(ck,[]);return old.length?old:L}
+// ---- clubs ESPN has no logo or color for ----
+// ESPN's rugby feed has neither for Bristol (id 25899). The crest and navy below are the club's own, copied once from bristolbearsrugby.com and
+// embedded here so the app never fetches them. Used only when ESPN sends nothing, and only for that club.
+const MISSING={'267979:25899':{logo:'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDciIGhlaWdodD0iMTExIiB2aWV3Qm94PSIwIDAgMTA3IDExMSIgZmlsbD0ibm9uZSI+PGcgY2xpcC1wYXRoPSJ1cmwoI2NsaXAwXzIyMF84Mjc0MSkiPjxwYXRoIGQ9Ik05My4yODYyIDMyLjgxNjhMOTQuNjAxOCAzMi4wMzgzQzk4Ljg2NzQgMjkuNTAxNiAxMDAuNzk0IDI2LjQwMTEgMTAwLjUxNSAyMi41NjI0TDEwMC4xNTYgMjEuMDE4OUwxMDIuMDk3IDIwLjg1NzhDOTkuNzcxIDExLjA1OTggOTMuMjU5NiA4LjQ0MjQ2IDkxLjc0NDcgNy45MDU1OEM5MS4xOTk5IDcuNzA0MjUgOTAuMTUwMSA3LjQyMjM5IDkwLjE1MDEgNy40MjIzOUw5MS4xMjAxIDUuODExNzVDODYuNTc1NCA1LjQwOTA5IDgxLjU5MjIgOC43NjQ1OSA4MS41OTIyIDguNzY0NTlMODMuMjEzNCA1LjI3NDg3QzgzLjIxMzQgNS4yNzQ4NyA4My4yOTMxIDUuMTU0MDcgODMuMzMzIDUuMTAwMzhDNzcuMjIwMiA2Ljc5MTU1IDcyLjI1MDMgMTAuMjE0MiA2OS4yMDcyIDEzLjU1NjJDNzIuNDM2MyAxNS4wMDU4IDc3Ljg0NDggMTguODE3NyA4Mi4xMjM3IDI0LjE0NjJDODIuMTIzNyAyNC4xNDYyIDc4LjA5NzMgMjMuOTA0NiA3NS43MDUzIDI1Ljc0MzRDNzUuNzA1MyAyNS43NDM0IDg3LjkwNDMgMjkuMjYgODcuOTA0MyA0NS43NDIyQzg3LjkwNDMgNDUuNzQyMiA4Mi42Mjg3IDQwLjMzMzEgNzYuMDc3NCA0MC4wOTE2Qzc2LjA3NzQgNDAuMDkxNiA3Mi40MzYzIDQ2LjQ4MDQgNjAuODYxOSA0OS4zMTI1QzYwLjg2MTkgNDkuMzEyNSA2NS4yNjA1IDQ0LjE0NSA2Ni4wMTc5IDM4LjExODVDNjYuMDE3OSAzOC4xMTg1IDU5Ljg1MiAzMy43MTYxIDUzLjQ0NjkgMzIuMzYwNUM0Ny4wMjg1IDMzLjcxNjEgNDAuODc1OCAzOC4xMTg1IDQwLjg3NTggMzguMTE4NUM0MS42MzMzIDQ0LjE0NSA0Ni4wMzE4IDQ5LjMxMjUgNDYuMDMxOCA0OS4zMTI1QzM0LjQ1NzQgNDYuNDgwNCAzMC44MTY0IDQwLjA5MTYgMzAuODE2NCA0MC4wOTE2QzI0LjI3ODMgNDAuMzMzMSAxOC45ODk1IDQ1Ljc0MjIgMTguOTg5NSA0NS43NDIyQzE4Ljk4OTUgMjguNzc2OCAzMS4xODg0IDI1Ljc0MzQgMzEuMTg4NCAyNS43NDM0QzI4Ljc5NjUgMjMuOTA0NiAyNC43NyAyNC4xNDYyIDI0Ljc3IDI0LjE0NjJDMjkuMzE0NyAxOC40MDE2IDM1LjQ4MDcgMTUuMjYwOCAzOC42NTY2IDEzLjkxODZDMzYuMjExNSAxMS42MTAxIDMwLjU5MDQgNi43MjQ0NCAyMy44Mzk4IDQuNjE3MTlDMjMuODM5OCA1LjY5MDk1IDIzLjc3MzQgNy4wMzMxNSAyMy43NzM0IDcuMDMzMTVDMjMuNzczNCA3LjAzMzE1IDIwLjczMDMgNS45NDU5NyAxNi40NjQ2IDUuOTMyNTRMMTcuNDc0NiA3LjQzNTgxQzE3LjQ3NDYgNy40MzU4MSAxNS45MTk4IDcuNjkwODMgMTUuMjk1MiA3LjkzMjQyQzE0LjY3MDcgOC4xNjA2IDcuMzA4NzcgMTAuMzQ4NCA0LjgxMDUxIDIwLjgzMUw2LjYzMTA1IDIxLjI3MzlDNi42MzEwNSAyMS4yNzM5IDYuMzkxODYgMjIuMTU5NyA2LjI3MjI2IDIzLjAxODhDNi4yNzIyNiAyMy4xMzk2IDUuMDM2NDIgMjYuOTY0OCAxMi40MzgyIDMyLjEwNTVMMTMuNjA3NiAzMi45MjQyTDEyLjkwMzMgMzQuMTcyNEMxMi43OTcgMzQuMzYwNCAzLjI1NTc0IDUxLjU1MzkgMy4wNjk3IDY0LjEzMDRDMy4zMDg5IDY0LjAyMyAzLjU2MTM4IDYzLjkyOSAzLjgyNzE1IDYzLjg0ODVMNS41ODEyNSA2My4yNzE0TDUuODMzNzQgNjUuMTEwMkM1Ljg2MDMxIDY1LjMxMTUgOC44MjM2OCA4NC45NDc5IDI0LjUwNDMgOTUuMzkwMkMyNC43OTY2IDk1LjAwMSAyNS4xNjg3IDk0LjU3MTUgMjUuNjIwNSA5NC4xNDJMMjYuNDU3NyA5My4zMzY3TDI3LjQ1NDMgOTMuOTEzOEMyNy42OTM1IDk0LjA0OCAzMy4zMjc5IDk3LjMyMyA0My41ODY3IDEwNi45NDdDNDQuOTU1NCAxMDcuMTc1IDQ5LjM4MDYgMTA3LjgzMiA1NC4zMjM5IDEwNy44NzNINTQuMzYzOEg1NC43NjI1QzU5LjYxMjggMTA3Ljg3MyA2Mi4zOTAxIDEwNy4yMTUgNjMuMjUzOSAxMDYuOTg3QzczLjU1MjYgOTcuMzA5NiA3OS4yMTM1IDk0LjAyMTIgNzkuNDUyNyA5My44ODdMODAuNDQ5NCA5My4zMDk4TDgxLjI4NjUgOTQuMTE1MUM4MS43MjUxIDk0LjU0NDYgODIuMDk3MiA5NC45NzQxIDgyLjQwMjggOTUuMzYzNEM5OC4wODM0IDg0LjkyMTEgMTAxLjA0NyA2NS4yODQ3IDEwMS4wNzMgNjUuMDY5OUwxMDEuMzM5IDYzLjIzMTFMMTAzLjA5MyA2My43OTQ4QzEwMy4zNTkgNjMuODg4OCAxMDMuNjExIDYzLjk4MjcgMTAzLjg1MSA2NC4wNzY3QzEwMy42NjUgNTEuNTAwMyA5NC4xMTAxIDM0LjMzMzUgOTQuMDAzOCAzNC4xNDU2TDkzLjI0NjMgMzIuODAzNEw5My4yODYyIDMyLjgxNjhaIiBmaWxsPSIjMTIxMjU0Ij48L3BhdGg+PHBhdGggZD0iTTEwMy42MzggMjMuODI0MUwxMDUuNzY0IDIzLjU0MjJMMTA1LjQ4NSAyMS45MzE2QzEwMy43MTggMTEuNzU3NyA5Ny43NjQ2IDcuNDc2MDYgOTQuNjY4MyA1Ljk5OTY0TDk3LjEyNjcgMy4yNzQ5N0M5Ny4xMjY3IDMuMjc0OTcgOTMuMDA3MiAyLjg5OTE1IDg5LjM5MjcgMy4zNTU1TDkyLjU0MjEgMC44ODU4NTNMODcuNzA1MSAxLjE5NDU2Qzc4LjI4MzQgMS43NTgyOCA3MC4yODM3IDcuNTI5NzUgNjYuNDU2NiAxMS45NzI0QzU3Ljc1MjUgNy4yODgxNSA0OC4xMTgzIDcuMzI4NDIgNDguMTE4MyA3LjMyODQyTDUwLjM2NCA5LjE5NDA4QzUwLjIzMTEgOS4xOTQwOCA0My41ODY4IDkuMzgxOTggNDMuNTg2OCA5LjM4MTk4TDQ3LjQ5MzcgMTEuMzU1QzQ0LjkxNTcgMTEuNzU3NyA0Mi45MjI0IDEyLjI5NDYgNDEuODA2MiAxMi42MTY3QzM5LjQxNDIgMTAuMTg3MyAzMS4yMTUxIDIuNTUwMTggMjAuNzAzOCAwLjY3MTFMMTYuOTQzMSAwTDE5LjA1NiAyLjk2NjI2QzE3LjUxNDYgMi43NjQ5MyAxNS42MTQzIDIuNzM4MDkgMTMuMzI4NiAzLjAwNjUzTDEwLjY0NDMgMy4zMjg2NkwxMi40NTE2IDUuNzU4MDRDOS4yMzU3NCA3LjM1NTI2IDMuMjE1OTkgMTEuNjYzNyAxLjQzNTMyIDIxLjkxODFMMS4xNTYyNSAyMy41Mjg4TDMuMTIyOTcgMjMuNzgzOEMzLjEyMjk3IDI1Ljk1ODIgNC4xMzI5MSAyOS43MTYzIDkuNTU0NjcgMzMuODUwM0M3LjA4Mjk4IDM4LjU0OCAtMS4yMDkxMiA1NS4zMjU1IDAuMTQ2MzE5IDY3LjIxNzRMMC4zMDU3ODIgNjkuMzI0N0MwLjMwNTc4MiA2OS4zMjQ3IDMuMDI5OTUgNjcuODM0OCAzLjIwMjcgNjcuNjg3MkM0LjQ3ODQxIDczLjU1MjYgOS4yNjIzMSA4OS43Nzk4IDI0LjIxMiA5OC44NjY1TDI1LjYzMzkgOTkuNzI1NUwyNi4zOTE0IDk4LjIzNTdDMjYuMzkxNCA5OC4yMzU3IDI2LjYwNCA5Ny44MTk2IDI3LjAwMjYgOTcuMjk2MUMyOS4wNzU3IDk4LjY3ODYgMzQuMTkxOCAxMDIuMzQzIDQxLjg0NiAxMDkuNTVMNDIuMTc4MiAxMDkuODU5TDQyLjYxNjggMTA5Ljk0QzQyLjg0MjcgMTA5Ljk4IDQ4LjM1NzQgMTEwLjk4NyA1NC43NDkzIDExMC45ODdINTUuMTg3OEM2MS40MjAyIDExMC45NDYgNjQuNDUgMTA5Ljg4NiA2NC41Njk2IDEwOS44NDZMNjQuODg4NSAxMDkuNzM4TDY1LjEyNzcgMTA5LjUxQzcyLjc4MTkgMTAyLjI4OSA3Ny44OTgxIDk4LjYyNDkgNzkuOTcxMSA5Ny4yNTU5QzgwLjM2OTcgOTcuNzc5MyA4MC41ODI0IDk4LjE4MiA4MC41ODI0IDk4LjE5NTRMODEuMzM5OCA5OS43MTIxTDgyLjc3NSA5OC44Mzk3Qzk3LjcyNDcgODkuNzUzIDEwMi41MDkgNzMuNTEyMyAxMDMuNzg0IDY3LjY2MDNDMTAzLjk0NCA2Ny44MDggMTA2LjY2OCA2OS4yNzEgMTA2LjY2OCA2OS4yNzFMMTA2Ljg0MSA2Ny4xOTA2QzEwOC4xODMgNTUuMzUyNCA5OS45NzA1IDM4LjcwOTEgOTcuNDQ1NiAzMy45MTc0QzEwMS4zOTIgMzEuMjA2MiAxMDMuNDY1IDI3LjgyMzggMTAzLjYzOCAyMy44MjQxWk0xMDMuODkxIDY0LjA5MDFDMTAzLjY1MSA2My45ODI3IDEwMy4zOTkgNjMuODg4OCAxMDMuMTMzIDYzLjgwODJMMTAxLjM3OSA2My4yNDQ1TDEwMS4xMTMgNjUuMDgzM0MxMDEuMDg3IDY1LjI4NDYgOTguMTIzMyA4NC45MjEgODIuNDQyOCA5NS4zNzY4QzgyLjE1MDQgOTQuOTg3NSA4MS43NzgzIDk0LjU1OCA4MS4zMjY1IDk0LjEyODVMODAuNDg5MyA5My4zMjMyTDc5LjQ5MjcgOTMuOTAwNEM3OS4yNTM1IDk0LjAzNDYgNzMuNjA1OCA5Ny4zMjMgNjMuMjkzOSAxMDdDNjIuNDMwMSAxMDcuMjI4IDU5LjYzOTUgMTA3Ljg4NiA1NC44MDI0IDEwNy44ODZINTQuMzYzOUM0OS40MjA1IDEwNy44NDYgNDQuOTk1NCAxMDcuMTg4IDQzLjYyNjcgMTA2Ljk2QzMzLjM2NzkgOTcuMzM2NCAyNy43MzM1IDk0LjA2MTQgMjcuNDk0MyA5My45MjcyTDI2LjQ5NzcgOTMuMzUwMUwyNS42NjA1IDk0LjE1NTRDMjUuMjIyIDk0LjU4NDkgMjQuODQ5OSA5NS4wMTQ0IDI0LjU0NDIgOTUuNDAzNkM4Ljg2MzY2IDg0Ljk0NzkgNS45MDAyOSA2NS4zMTE1IDUuODczNzIgNjUuMTIzNkw1LjYyMTIzIDYzLjI4NDhMMy44NjcxMyA2My44NjE5QzMuNjAxMzYgNjMuOTU1OSAzLjM0ODg4IDY0LjA0OTggMy4xMDk2OCA2NC4xNDM4QzMuMjk1NzIgNTEuNTY3NCAxMi44MzcgMzQuMzczOCAxMi45NDMzIDM0LjE4NTlMMTMuNjQ3NiAzMi45Mzc2TDEyLjQ3ODIgMzIuMTE4OUM1LjA3NjQgMjYuOTc4MiA2LjMyNTUzIDIzLjE2NjQgNi4zMTIyNCAyMy4wMzIyQzYuNDMxODQgMjIuMTg2NiA2LjY3MTAzIDIxLjI4NzMgNi42NzEwMyAyMS4yODczTDQuODUwNDkgMjAuODQ0NEM3LjM0ODc1IDEwLjM2MTggMTQuNzIzOSA4LjE4NzQyIDE1LjMzNTIgNy45NDU4M0MxNS45NTk4IDcuNzE3NjUgMTcuNTE0NiA3LjQ0OTIxIDE3LjUxNDYgNy40NDkyMUwxNi41MDQ2IDUuOTQ1OTVDMjAuNzcwMyA1Ljk1OTM3IDIzLjgwMDEgNy4wNDY1NSAyMy44MTM0IDcuMDQ2NTVDMjMuODEzNCA3LjA0NjU1IDIzLjg3OTggNS43MDQzNSAyMy44Nzk4IDQuNjMwNTlDMzAuNjMwNCA2LjczNzg1IDM2LjI1MTUgMTEuNjIzNSAzOC42OTY2IDEzLjkzMkMzNS41MzM5IDE1LjI3NDIgMjkuMzY4IDE4LjQxNSAyNC44MSAyNC4xNTk2QzI0LjgxIDI0LjE1OTYgMjguODM2NSAyMy45MTggMzEuMjI4NCAyNS43NTY4QzMxLjIyODQgMjUuNzU2OCAxOS4wMjk1IDI4Ljc5MDIgMTkuMDI5NSA0NS43NTU2QzE5LjAyOTUgNDUuNzU1NiAyNC4zMDUgNDAuMzQ2NiAzMC44NTYzIDQwLjEwNUMzMC44NTYzIDQwLjEwNSAzNC40OTc0IDQ2LjQ5MzggNDYuMDcxOCA0OS4zMjU5QzQ2LjA3MTggNDkuMzI1OSA0MS42NzMzIDQ0LjE1ODQgNDAuOTE1OCAzOC4xMzE5QzQwLjkxNTggMzguMTMxOSA0Ny4wODE3IDMzLjcyOTUgNTMuNDg2OSAzMi4zNzM5QzU5LjkwNTMgMzMuNzI5NSA2Ni4wNTc5IDM4LjEzMTkgNjYuMDU3OSAzOC4xMzE5QzY1LjMwMDQgNDQuMTU4NCA2MC45MDE5IDQ5LjMyNTkgNjAuOTAxOSA0OS4zMjU5QzcyLjQ3NjMgNDYuNDkzOCA3Ni4xMTc0IDQwLjEwNSA3Ni4xMTc0IDQwLjEwNUM4Mi42NTU0IDQwLjM0NjYgODcuOTQ0MyA0NS43NTU2IDg3Ljk0NDMgNDUuNzU1NkM4Ny45NDQzIDI5LjI3MzQgNzUuNzQ1MyAyNS43NTY4IDc1Ljc0NTMgMjUuNzU2OEM3OC4xMzczIDIzLjkxOCA4Mi4xNjM3IDI0LjE1OTYgODIuMTYzNyAyNC4xNTk2Qzc3Ljg4NDggMTguODMxMSA3Mi40NzYzIDE1LjAzMjYgNjkuMjQ3MiAxMy41Njk2QzcyLjI5MDMgMTAuMjI3NiA3Ny4yNzM1IDYuODA0OTYgODMuMzczIDUuMTEzNzhDODMuMzMzMSA1LjE2NzQ3IDgzLjI5MzIgNS4yMzQ1OCA4My4yNTM0IDUuMjg4MjdMODEuNjMyMiA4Ljc3Nzk5QzgxLjYzMjIgOC43Nzc5OSA4Ni42MTU0IDUuNDIyNDkgOTEuMTYwMSA1LjgyNTE1TDkwLjE5IDcuNDM1NzlDOTAuMTkgNy40MzU3OSA5MS4yMzk4IDcuNzMxMDggOTEuNzg0NyA3LjkxODk4QzkzLjI4NjMgOC40NTU4NiA5OS44MTEgMTEuMDczMiAxMDIuMTM3IDIwLjg3MTJMMTAwLjE5NiAyMS4wMzIzTDEwMC41NTUgMjIuNTc1OEMxMDAuODM0IDI2LjQxNDUgOTguODk0MSAyOS41MTUgOTQuNjQxNyAzMi4wNTE4TDkzLjMyNjIgMzIuODMwMkw5NC4wODM2IDM0LjE3MjRDOTQuMTg5OSAzNC4zNjAzIDEwMy43NTggNTEuNTEzNyAxMDMuOTMgNjQuMTAzNUwxMDMuODkxIDY0LjA5MDFaIiBmaWxsPSIjRjRGNEY0Ij48L3BhdGg+PHBhdGggZD0iTTUzLjQ2MDEgNTEuMjMxN0w0Ni4yOTc2IDU1LjA0MzVMMzYuNzQzIDc4LjQ5MThDMzYuNzQzIDc4LjQ5MTggMzguMTI1MSA4My45ODE0IDQyLjc3NjEgODQuNzE5NkM0Mi43NzYxIDg0LjcxOTYgNDEuMjYxMiA4MS4wMjg2IDQyLjAxODYgNzcuODM0MUM0Mi4wMTg2IDc3LjgzNDEgNDMuNzMyOSA3NS4xMjI5IDUwLjkwODcgNzUuNDk4N0M1MC45MDg3IDc1LjQ5ODcgNDcuMDk0OSA3Ni4zNTc3IDQ1LjU0MDEgNzkuMzkxMUM0NS41NDAxIDc5LjM5MTEgNTAuMDcxNSA3OS44MjA2IDUzLjQ2MDEgODEuOTY4MUM1Ni41Njk3IDc5LjY1OTUgNjEuMzgwMiA3OS4zOTExIDYxLjM4MDIgNzkuMzkxMUM1OS4yODA1IDc1Ljk5NTMgNTYuMDExNiA3NS40OTg3IDU2LjAxMTYgNzUuNDk4N0M2My4xODc0IDc1LjEyMjkgNjQuOTAxNiA3Ny44MzQxIDY0LjkwMTYgNzcuODM0MUM2NS42NTkxIDgxLjAyODYgNjQuMTQ0MiA4NC43MTk2IDY0LjE0NDIgODQuNzE5NkM2OC43OTUyIDgzLjk4MTQgNzAuMTc3MiA3OC40OTE4IDcwLjE3NzIgNzguNDkxOEw2MC42MjI3IDU1LjA0MzVMNTMuNDYwMSA1MS4yMzE3WiIgZmlsbD0iI0Y0RjRGNCI+PC9wYXRoPjxwYXRoIGQ9Ik0zMS44Mzk1IDQ5LjYwNzhDMzAuNzM2NiA0OC4yMzg4IDMwLjY0MzUgNDYuNDkzOSAzMS41NjA1IDQ1LjU2NzhDMzEuNTYwNSA0NS41NDEgMzEuNTYwNSA0NS41Mjc1IDMxLjU2MDUgNDUuNTI3NUMzMC4zMzc5IDQ0LjEzMTcgMjkuMjQ4MiA0My43MjkgMjkuMjQ4MiA0My43MjlDMjEuNzQwMiA0NS44MjI4IDE3LjkyNjMgNTAuOTc2OSAxNy45MjYzIDUwLjk3NjlDMjQuMjkxNiA0Ni42MjgyIDI4Ljk1NTkgNDcuNjIxNCAyOC45NTU5IDQ3LjYyMTRDMzEuNDI3NiA1Mi45OTAyIDM2LjIxMTUgNTEuNTk0MyAzNi4yMTE1IDUxLjU5NDNWNTAuNDkzN0MzNi4yMTE1IDUwLjQ5MzcgMzYuMDY1MyA1MC42Mjc5IDM1Ljk4NTYgNTAuNjgxNkMzNC44NTYgNTEuNTQwNiAzMi45OTU2IDUxLjA3MDggMzEuODI2MiA0OS42MDc4IiBmaWxsPSIjRjRGNEY0Ij48L3BhdGg+PHBhdGggZD0iTTM1LjMzNDQgNDkuNTI3MUwzNS40NTQgNDkuNDE5OEwzMi45MDI2IDQ2Ljc0ODhWNDYuNzc1NkMzMi4zOTc3IDQ3LjI4NTcgMzIuNDY0MSA0OC4yMjUyIDMzLjA3NTQgNDguOTYzNEMzMy43MjY1IDQ5Ljc0MTkgMzQuNzM2NSA0OS45OTY5IDM1LjM0NzcgNDkuNTI3MSIgZmlsbD0iIzAwQThFMSI+PC9wYXRoPjxwYXRoIGQ9Ik03Ny43Mzg0IDQzLjcyOUM3Ny43Mzg0IDQzLjcyOSA3Ni42NDg4IDQ0LjE0NTEgNzUuNDI2MiA0NS41Mjc1Qzc1LjQyNjIgNDUuNTI3NSA3NS40MjYyIDQ1LjU0MSA3NS40MjYyIDQ1LjU2NzhDNzYuMzQzMSA0Ni40OTM5IDc2LjI1MDEgNDguMjM4OCA3NS4xNDcxIDQ5LjYwNzhDNzMuOTc3NyA1MS4wNzA4IDcyLjExNzMgNTEuNTU0IDcwLjk4NzggNTAuNjgxNkM3MC45MjE0IDUwLjYyNzkgNzAuNzYxOSA1MC40OTM3IDcwLjc2MTkgNTAuNDkzN1Y1MS41OTQzQzcwLjc2MTkgNTEuNTk0MyA3NS41NDU4IDUyLjk5MDIgNzguMDE3NSA0Ny42MjE0Qzc4LjAxNzUgNDcuNjIxNCA4Mi42Njg1IDQ2LjY0MTYgODkuMDQ3MSA1MC45NzY5Qzg5LjA0NzEgNTAuOTc2OSA4NS4yMzMyIDQ1LjgwOTQgNzcuNzI1MSA0My43MTU2IiBmaWxsPSIjRjRGNEY0Ij48L3BhdGg+PHBhdGggZD0iTTczLjkzNzkgNDguOTYzNEM3NC41MzU5IDQ4LjIyNTIgNzQuNjAyNCA0Ny4yODU3IDc0LjExMDcgNDYuNzc1NlY0Ni43NjIyTDcxLjU1OTMgNDkuNDMzMkM3MS41NTkzIDQ5LjQzMzIgNzEuNjM5IDQ5LjUwMDMgNzEuNjc4OSA0OS41NDA2QzcyLjI5MDEgNTAuMDIzOCA3My4zMDAxIDQ5Ljc2ODcgNzMuOTUxMiA0OC45NzY4IiBmaWxsPSIjMDBBOEUxIj48L3BhdGg+PC9nPjxkZWZzPjxjbGlwUGF0aCBpZD0iY2xpcDBfMjIwXzgyNzQxIj48cmVjdCB3aWR0aD0iMTA3IiBoZWlnaHQ9IjExMSIgZmlsbD0id2hpdGUiPjwvcmVjdD48L2NsaXBQYXRoPjwvZGVmcz48L3N2Zz4=',color:'#121254'}};
+const fallback=(lg,id)=>MISSING[lg+':'+id]||null;
 // ---- team colors ----
 // Hand-picked club colors (where ESPN's feed gives white/black/neon) so the tab matches the club's recognizable color.
 const BRAND={
@@ -419,6 +425,7 @@ function pickColor(sp,t,used,league){
  const hex=h=>/^#[0-9a-f]{6}$/i.test(h||'')&&lum(h)<.85;
  let c=hex(b)?b:hex(t.c)?t.c:hex(t.a)?t.a:'';
  if(!c&&NCAA.has(league)&&SITE_NCAA[t.id])c=SITE_NCAA[t.id];
+ if(!c&&fallback(league,t.id))c=fallback(league,t.id).color;
  if(!c)c=PAL.find(p=>!used.has(p))||PAL[used.size%PAL.length];
  return c}
 // build a followed-team record. Soccer clubs follow their league plus its usual cups/Europe.
@@ -627,7 +634,7 @@ function head(d,e){
  const o=e.sp==='soccer'||e.sp==='rugby'?cs.slice().sort(a=>a.homeAway==='home'?-1:1):cs.slice().sort(a=>a.homeAway==='away'?-1:1);
  const sc=x=>x.score&&typeof x.score==='object'?x.score.displayValue:x.score;
  const rk=x=>{const r=x.rank??x.curatedRank?.current;return r>0&&r<=25?`<small class="rk">#${r}</small> `:''};
- const tm=x=>`<div>${x.team?.logos?.[0]?.href?`<img src="${esc(x.team.logos[0].href)}" alt="" onerror="this.remove()">`:''}${rk(x)}${esc(x.team?.displayName)}</div>`;
+ const tm=x=>{const lg=x.team?.logos?.[0]?.href||fallback(e.lg,x.team?.id)?.logo;return`<div>${lg?`<img src="${esc(lg)}" alt="" onerror="this.remove()">`:''}${rk(x)}${esc(x.team?.displayName)}</div>`};
  let h=`<div class="big">${tm(o[0])}<span class="n">${esc(sc(o[0]))}–${esc(sc(o[1]))}</span>${tm(o[1])}</div>`;
  h+=`<div class="meta">${esc(new Date(e.date).toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric',year:'numeric'}))} · ${esc(e.comp)}</div>`;
  if(e.sp!=='soccer'&&o[0].linescores?.length){
@@ -807,15 +814,15 @@ const ctxKey=e=>e.lg+(e.po?':po':'');
 function defCtx(t){
  const ev=data[t.k]?.ev||[],nx=ev.find(e=>!(e.done||e.state==='post')),po=nx?nx.po:ev[ev.length-1]?.po;
  return t.sp==='soccer'?t.lg[0]:t.lg[0]+(po?':po':'')}
-function groups(d){
+function groups(d,lg){
  const o=[];(function w(n){
   if(n.standings?.entries)o.push({name:n.name||'',rows:n.standings.entries.map(e=>{const s={};(e.stats||[]).forEach(x=>s[x.name]=x.displayValue??x.value);
-   return{id:String(e.team?.id),n:e.team?.shortDisplayName||e.team?.displayName||'',l:e.team?.logos?.[0]?.href||'',s}})});
+   return{id:String(e.team?.id),n:e.team?.shortDisplayName||e.team?.displayName||'',l:e.team?.logos?.[0]?.href||fallback(lg,e.team?.id)?.logo||'',s}})});
   (n.children||[]).forEach(w)})(d);
  o.forEach(g=>g.rows.sort((a,b)=>(+(a.s.rank||a.s.playoffSeed)||99)-(+(b.s.rank||b.s.playoffSeed)||99)));return o}
 async function getStand(t,lg,q){
  const k='ft_s_'+lg+q;
- try{const g=groups(await j(SAPI+`${t.sp}/${lg}/standings${q}`));if(g.length){ls.set(k,g);return g}}catch{}
+ try{const g=groups(await j(SAPI+`${t.sp}/${lg}/standings${q}`),lg);if(g.length){ls.set(k,g);return g}}catch{}
  return ls.get(k,null)}
 function tbl(g,t){
  const C=COLS[t.sp];
@@ -881,6 +888,27 @@ $('#x2').onclick=()=>{$('#sheet2').classList.remove('open');render()};
 updatePins();render();backfillShort();
 {const old=Object.values(data).some(x=>Date.now()-x.ts>36e5||x.ev.some(e=>!('tv' in e)));if(TEAMS.length&&(!Object.keys(data).length||old))refresh()}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&TEAMS.length&&Object.values(data).some(x=>Date.now()-x.ts>36e5))refresh()});
+// ---- always run the latest published version ----
+// A home-screen web app can keep showing an old copy of the page. On launch and whenever the app comes back to the front, ask the server for a
+// fresh copy of this same page (cache bypassed), compare a short fingerprint of its code to the code that's running, and reload if they differ.
+// Never interrupts: if a match, standings, settings or player sheet is open it waits until they're closed. Offline or any failure: does nothing.
+const fp=t=>{let h=5381;for(let i=0;i<t.length;i++)h=((h<<5)+h+t.charCodeAt(i))|0;return(h>>>0).toString(36)};
+const codeOf=h=>{const m=[...String(h).matchAll(/<script>([\s\S]*?)<\/script>/g)].map(x=>x[1]).filter(t=>t.length>1000);return m.length?m[m.length-1]:''};
+const RUNNING=fp([...(document.scripts||[])].map(x=>x.textContent).filter(t=>t.length>1000).pop()||'');
+let verTok=0,verWait=false;
+async function checkVersion(){
+ if(typeof fetch!=='function'||verWait)return;
+ try{
+  const r=await fetch(location.pathname+'?v='+Date.now(),{cache:'no-store'});if(!r.ok)return;
+  const code=codeOf(await r.text());
+  // no app script in the reply (an error or maintenance page, an empty response): leave the running copy alone
+  if(!code)return;
+  if(fp(code)===RUNNING)return;
+  if(!sheetOpen()){location.reload();return}
+  // a sheet is open: try again shortly, so it updates the moment you close it
+  verWait=true;setTimeout(()=>{verWait=false;checkVersion()},4000)}catch{}}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkVersion()});
+checkVersion();
 </script>
 </body>
 </html>
