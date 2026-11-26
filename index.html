@@ -81,6 +81,10 @@ h2{font-size:14px;font-weight:700;color:var(--mute);margin:22px 4px 8px}
 .pst td:first-child small{display:block;color:var(--mute);font-size:11px}
 .pgl td:first-child{white-space:nowrap}.pgl .W{color:var(--w);font-weight:700}.pgl .L{color:var(--l);font-weight:700}.pgl .D{color:var(--d);font-weight:700}
 .nm{cursor:pointer}
+.dot{cursor:pointer;box-shadow:0 0 0 3px transparent}
+.swatches{display:flex;flex-wrap:wrap;gap:10px;padding:10px 14px 14px;background:var(--card);border:1px solid var(--line);border-radius:12px;margin:-4px 0 8px}
+.sw{width:30px;height:30px;border-radius:50%;border:2px solid transparent;padding:0}
+.sw.on{border-color:var(--ink)}
 .rk{font-size:.78em;font-weight:700;color:var(--mute)}
 .nm:active{opacity:.6}
 .bar{position:sticky;top:0;display:flex;justify-content:space-between;z-index:2}
@@ -274,10 +278,17 @@ function updatePins(){TEAMS.forEach(t=>{const D=data[t.k];if(!D)return;
 $('#list').addEventListener('click',e=>{const b=e.target.closest('[data-v]');if(b){view=b.dataset.v;ls.set('ft_view',view);render()}
  if(e.target.closest('#pick')){openSettings();sv='sports';renderSettings()}});
 // the nickname for a followed team: "Boston Celtics" -> "Celtics", soccer clubs keep ESPN's short club name when we've learned one
-const tabShort=t=>t.sn||shortName({displayName:t.n,id:t.id},t.sp==='soccer');
+const tabShort=t=>t.sn||t.n;
 function fitTabs(){
  document.querySelectorAll('#tabs .tab>span:not(.hint)').forEach(s=>{s.textContent=s.dataset.f;if(s.scrollWidth>s.clientWidth+1&&s.dataset.s&&s.dataset.s!==s.dataset.f)s.textContent=s.dataset.s})}
 let fitT=0;addEventListener('resize',()=>{clearTimeout(fitT);fitT=setTimeout(fitTabs,80)});
+async function backfillShort(){
+ const need=TEAMS.filter(t=>!t.sn);if(!need.length)return;
+ const lgs=[...new Set(need.map(t=>t.sp+'|'+t.lg[0]))];let changed=false;
+ await Promise.all(lgs.map(async k=>{const[sp,lg]=k.split('|');try{
+  const L=await loadTeams(sp,lg);
+  need.filter(t=>t.sp===sp&&t.lg[0]===lg).forEach(t=>{const o=L.find(x=>String(x.id)===String(t.id));if(o&&o.s){t.sn=o.s;changed=true}})}catch{}}));
+ if(changed){saveTeams();render()}}
 function render(){
  const t=TEAMS.find(x=>x.k===cur);
  if(!t){
@@ -312,6 +323,10 @@ const allRevealed=t=>{const F=finished(t);return F.length>0&&F.every(e=>rev.has(
 const saveTeams=()=>ls.set('ft_teams',TEAMS);
 function openSettings(){sv='main';$('#sheet3').classList.add('open');$('#sheet3').scrollTop=0;renderSettings()}
 function closeSettings(){$('#sheet3').classList.remove('open');updatePins();render()}
+let dotK='';
+const SWATCH=['#e03a3a','#e8591a','#f0a81a','#d6c21f','#4ba84b','#1fa8a8','#2a6fd6','#4a4ac8','#8a5cd6','#c23b8a','#5c7a8a','#16181d'];
+function dotPicker(t){
+ return`<div class="swatches">${SWATCH.map(c=>`<button class="sw${c===t.c?' on':''}" data-a="setc" data-k="${esc(t.k)}" data-c="${c}" style="background:${c}" aria-label="${c}"></button>`).join('')}</div>`}
 function renderSettings(){
  const dark=document.documentElement.dataset.theme==='dark',bk=$('#bk');
  bk.style.display=sv==='main'?'none':'';$('#x3').textContent=sv==='main'?'Done':'Done';
@@ -319,7 +334,7 @@ function renderSettings(){
   $('#st').innerHTML=`<h1 class="sh">Settings</h1>
    <div class="pl"><button class="opt" data-a="theme"><span>Dark mode</span><span class="tg${dark?' on':''}"></span></button></div>
    <h3>Reveal all results</h3>
-   <div class="pl">${TEAMS.length?TEAMS.map(t=>{const n=finished(t).filter(e=>!rev.has(key(e))).length;return`<button class="opt" data-a="rv" data-k="${esc(t.k)}"${n?'':' disabled'}><span class="tl"><i style="background:${t.c}"></i><b>${esc(t.n)}</b></span><span class="mini">${n?`Reveal ${n}`:'All revealed'}</span></button>`}).join(''):'<div class="note" style="margin:8px 0">Follow a team to see it here.</div>'}</div>
+   <div class="pl">${TEAMS.length?TEAMS.map(t=>{const n=finished(t).filter(e=>!rev.has(key(e))).length;return`<button class="opt" data-a="rv" data-k="${esc(t.k)}"${n?'':' disabled'}><span class="tl"><i class="dot" data-a="dot" data-k="${esc(t.k)}" style="background:${t.c}"></i><b>${esc(t.n)}</b></span><span class="mini">${n?`Reveal ${n}`:'All revealed'}</span></button>${dotK===t.k?dotPicker(t):''}`}).join(''):'<div class="note" style="margin:8px 0">Follow a team to see it here.</div>'}</div>
    <div class="note">Reveals every result that has already finished, once. Games that finish later stay hidden until you reveal them.</div>
    <h3>Teams</h3>
    <div class="pl"><button class="opt" data-a="teams"><span>Choose teams to follow<small>${TEAMS.length} followed</small></span><span class="go">›</span></button></div>
@@ -357,13 +372,13 @@ async function loadTeams(sp,lg){
  try{
   const d=await j(`${SAPI}${sp}/${lg}/standings`),seen=new Set();
   (function w(n){(n.standings?.entries||[]).forEach(e=>{const t=e.team;if(!t||seen.has(String(t.id)))return;seen.add(String(t.id));
-    L.push({id:String(t.id),n:t.displayName||t.shortDisplayName||t.name,l:t.logos?.[0]?.href||'',c:'',a:''})});(n.children||[]).forEach(w)})(d)}catch{}
+    L.push({id:String(t.id),n:t.displayName||t.shortDisplayName||t.name,s:t.shortDisplayName||'',l:t.logos?.[0]?.href||'',c:'',a:''})});(n.children||[]).forEach(w)})(d)}catch{}
  try{
   const d=await j(`${API}${sp}/${lg}/teams?limit=1000&lang=en`),by={};
   (d.sports?.[0]?.leagues?.[0]?.teams||[]).forEach(x=>{const t=x.team;if(t)by[String(t.id)]=t});
-  L.forEach(t=>{const o=by[t.id];if(o){t.c=o.color?'#'+o.color:'';t.a=o.alternateColor?'#'+o.alternateColor:''}})}catch{}
- if(L.length){L.sort((a,b)=>a.n.localeCompare(b.n));ls.set(ck,L);return L}
- return ls.get(ck,[])}
+  L.forEach(t=>{const o=by[t.id];if(o){t.c=o.color?'#'+o.color:'';t.a=o.alternateColor?'#'+o.alternateColor:'';t.s=o.shortDisplayName||''}})}catch{}
+ if(L.length){L.sort((a,b)=>a.n.localeCompare(b.n));if(L.some(t=>t.c))ls.set(ck,L);return L}
+ const old=ls.get(ck,[]);return old.length?old:L}
 // ---- team colors ----
 // Hand-picked club colors (where ESPN's feed gives white/black/neon) so the tab matches the club's recognizable color.
 const BRAND={
@@ -380,39 +395,35 @@ const BRAND={
  'nfl:13':'#a5acaf','nfl:23':'#ffb612','nfl:34':'#a71930','nfl:33':'#6b3fb5','nfl:3':'#e8591a',
  'nba:17':'#7a7a7a','nba:24':'#8a949c','nba:12':'#c8102e','nba:21':'#e56020','nba:26':'#4e008e','nba:11':'#ffd520','nba:14':'#98002e',
  'mlb:4':'#7a8791','mlb:10':'#2a4a8a','mlb:27':'#5a2d8c','mlb:23':'#fdb827','mlb:26':'#fd5a1e','mlb:9':'#d31145',
- 'nhl:8':'#a2aaad','nhl:124292':'#68a2b9','nhl:16':'#fcb514','nhl:129764':'#71afe5',
- // WNBA (ids are the WNBA's own)
- 'wnba:17':'#c8102e','wnba:132052':'#e8543a',
- // rugby: Premiership clubs, by ESPN team id (where ESPN sends none, black, grey or very dark blue)
- 'rugby:25898':'#2a5db0','rugby:25899':'#2a4a9a','rugby:116227':'#a8860a','rugby:25901':'#d6006e','rugby:25906':'#6a6a6a',
- // NCAA football + basketball, by ESPN team id (the same school keeps one color in both)
- 'ncaa:242':'#3a63b8','ncaa:2306':'#6a3d9a','ncaa:84':'#c8102e','ncaa:2294':'#e0a800','ncaa:275':'#c5050c','ncaa:264':'#5b3a9a','ncaa:213':'#2f5fa8',
- 'ncaa:2623':'#a01c2c','ncaa:41':'#2e5aa8','ncaa:2440':'#3a63b8','ncaa:328':'#2e5aa8','ncaa:201':'#c8102e','ncaa:2579':'#a0192a','ncaa:245':'#a01c2c',
- 'ncaa:290':'#3a63b8','ncaa:2230':'#a01c3c','ncaa:45':'#4a7ab8','ncaa:46':'#4a6fb0','ncaa:2692':'#5b3a9a','ncaa:2272':'#6a3da8','ncaa:27':'#3a63b8',
- 'ncaa:2856':'#3a63b8','ncaa:2619':'#c8102e','ncaa:2182':'#3a63b8','ncaa:2405':'#3a63b8','ncaa:108':'#c8102e','ncaa:2514':'#3a63b8','ncaa:2428':'#a0183a',
- 'ncaa:93':'#3a63b8','ncaa:302':'#3a63b8','ncaa:2634':'#4a4ac8','ncaa:2198':'#a01c2c','ncaa:2640':'#a0185a','ncaa:2010':'#a01c2c','ncaa:2541':'#a01c2c',
- 'ncaa:2501':'#6a3da8','ncaa:2507':'#6a6a6a','ncaa:2097':'#e0a800','ncaa:2217':'#c8102e','ncaa:2320':'#c8102e','ncaa:2916':'#c8102e','ncaa:299':'#e0a800',
- 'ncaa:91':'#c8102e','ncaa:2197':'#3a63b8','ncaa:2110':'#6a3da8','ncaa:2627':'#6a3da8','ncaa:3101':'#c8102e','ncaa:2385':'#2e5aa8','ncaa:2815':'#2e5aa8',
- 'ncaa:284':'#6a3da8','ncaa:2900':'#c8102e','ncaa:2837':'#3a63b8','ncaa:2330':'#2e8a4a','ncaa:88':'#c8102e'};
+ 'nhl:8':'#a2aaad','nhl:124292':'#68a2b9','nhl:16':'#fcb514','nhl:129764':'#71afe5'};
 const lum=h=>{const r=parseInt(h.slice(1,3),16)/255,g=parseInt(h.slice(3,5),16)/255,b=parseInt(h.slice(5,7),16)/255;return .2126*r+.7152*g+.0722*b};
 const sat=h=>{const r=parseInt(h.slice(1,3),16)/255,g=parseInt(h.slice(3,5),16)/255,b=parseInt(h.slice(5,7),16)/255,mx=Math.max(r,g,b),mn=Math.min(r,g,b);return mx?(mx-mn)/mx:0};
-const okCol=h=>/^#[0-9a-f]{6}$/i.test(h||'')&&lum(h)>=.14&&lum(h)<=.80&&sat(h)>=.25;
-// order: hand-picked brand color → ESPN primary (if readable) → ESPN alternate (if readable) → unused palette color
+// Reference color for a school ESPN sends no color for at all (teamcolorcodes.com's NCAA page; id is ESPN's). Used only when ESPN has nothing.
+const SITE_NCAA={2130:'#006666'};
 function pickColor(sp,t,used,league){
  const lg=league?(NCAA.has(league)?'ncaa':league==='wnba'?'wnba':league==='267979'?'rugby':['nfl','nba','mlb','nhl'].includes(league)?league:''):{football:'nfl',basketball:'nba',baseball:'mlb',hockey:'nhl'}[sp];
  const b=sp==='soccer'?BRAND[Number(t.id)]:lg?BRAND[lg+':'+t.id]:'';
- let c=/^#[0-9a-f]{6}$/i.test(b||'')?b:[t.c,t.a].find(okCol);
+ // order: hand-picked pro/soccer color -> ESPN's primary color exactly as sent -> (only if ESPN sent none) ESPN's alternate -> reference-site color -> generic palette
+ // a color needs to be a real hex, and not white/near-white (a white tab or white selected button would vanish); black and dark colors are kept
+ const hex=h=>/^#[0-9a-f]{6}$/i.test(h||'')&&lum(h)<.85;
+ let c=hex(b)?b:hex(t.c)?t.c:hex(t.a)?t.a:'';
+ if(!c&&NCAA.has(league)&&SITE_NCAA[t.id])c=SITE_NCAA[t.id];
  if(!c)c=PAL.find(p=>!used.has(p))||PAL[used.size%PAL.length];
  return c}
 // build a followed-team record. Soccer clubs follow their league plus its usual cups/Europe.
 function mkTeam(sp,lg,t){
  const k=`${sp}:${lg}:${t.id}`,used=new Set(TEAMS.map(x=>x.c)),c=pickColor(sp,t,used,lg);
- return{k,n:t.n,id:Number(t.id),sp,lg:sp==='soccer'?[lg,...(SOCCER_EXTRA[lg]||[])]:[lg],c}}
+ return{k,n:t.n,sn:t.s||'',id:Number(t.id),sp,lg:sp==='soccer'?[lg,...(SOCCER_EXTRA[lg]||[])]:[lg],c}}
+// ESPN's own record for one team (color, alternate color, short name). Used when the picker list came without them.
+async function teamInfo(sp,lg,id){
+ try{const d=await j(`${API}${sp}/${lg}/teams/${id}`),t=d.team||{};
+  return{c:t.color?'#'+t.color:'',a:t.alternateColor?'#'+t.alternateColor:'',s:t.shortDisplayName||''}}catch{return null}}
 function toggleTeam(id){
  const t=pList.find(x=>String(x.id)===String(id));if(!t)return;
  const i=TEAMS.findIndex(x=>x.sp===pSport&&String(x.id)===String(id)&&x.lg[0]===pLg);
  if(i>=0){removeTeam(TEAMS[i].k)}
- else{const nt=mkTeam(pSport,pLg,t);TEAMS.push(nt);saveTeams();if(!TEAMS.some(x=>x.k===cur)||!cur){cur=nt.k;ls.set('ft_tab',cur)}refresh()}
+ else{const nt=mkTeam(pSport,pLg,t);TEAMS.push(nt);saveTeams();
+  if(!t.c&&!t.a)teamInfo(pSport,pLg,t.id).then(i=>{if(!i)return;const m=TEAMS.find(x=>x.k===nt.k);if(!m)return;m.c=pickColor(pSport,{id:t.id,c:i.c,a:i.a},new Set(TEAMS.filter(x=>x!==m).map(x=>x.c)),pLg);if(i.s)m.sn=i.s;saveTeams();render()});if(!TEAMS.some(x=>x.k===cur)||!cur){cur=nt.k;ls.set('ft_tab',cur)}refresh()}
  renderSettings()}
 function removeTeam(k){
  TEAMS=TEAMS.filter(t=>t.k!==k);saveTeams();delete data[k];ls.set('ft_data',data);
@@ -421,9 +432,11 @@ function removeTeam(k){
 $('#st').addEventListener('click',e=>{
  const b=e.target.closest('[data-a]');if(!b)return;const a=b.dataset.a;
  if(a==='theme'){setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');renderSettings()}
- else if(a==='rv'){const t=TEAMS.find(x=>x.k===b.dataset.k);if(!t)return;
+ else if(a==='rv'){if(e.target.closest('[data-a="dot"]'))return;const t=TEAMS.find(x=>x.k===b.dataset.k);if(!t)return;
   finished(t).forEach(e=>rev.add(key(e)));
   ls.set('ft_rev',[...rev]);updatePins();renderSettings()}
+ else if(a==='dot'){e.stopPropagation();dotK=dotK===b.dataset.k?'':b.dataset.k;renderSettings()}
+ else if(a==='setc'){const t=TEAMS.find(x=>x.k===b.dataset.k);if(t){t.c=b.dataset.c;saveTeams()}dotK='';renderSettings()}
  else if(a==='teams'){sv='sports';renderSettings()}
  else if(a==='rm'){removeTeam(b.dataset.k);renderSettings()}
  else if(a==='sport'){pSport=b.dataset.s;const S=SPORTS[pSport];
@@ -639,22 +652,19 @@ const evRow=(tag,text,sub,html)=>`<div class="ev"><b>${esc(tag)}</b><span>${html
 // Short tab label. US leagues: the nickname ("Chicago Bears" -> "Bears", "Boston Red Sox" -> "Red Sox").
 // Soccer: ESPN's own short club name ("Leeds", "Hull", "Man City", "Man Utd"); if that is missing, the full club name. Never a last-word guess
 // ("United", "City" and "Town" mean different clubs).
-const NICK2=new Set(['Red Sox','White Sox','Blue Jays','Trail Blazers','Maple Leafs','Blue Jackets','Golden Knights','Red Wings']);
+// Short tab label: ESPN's own short name for the team ("Red Sox", "Blue Jackets", "Alabama", "Man City"). If ESPN sends none, the full name.
+// Never a last-word guess: that turns "Alabama Crimson Tide" into "Tide" and "Boston Red Sox" into "Sox".
 let shortById={};
-function shortName(t,soccer){
+function shortName(t){
  if(!t)return'';
- if(soccer)return shortById[String(t.id)]||t.shortDisplayName||t.displayName||t.abbreviation||'';
- if(t.shortDisplayName)return t.shortDisplayName;
- const n=t.displayName||t.name||t.abbreviation||'',w=n.split(' ');
- if(w.length<3)return w.length===2?w[1]:n;
- const two=w.slice(-2).join(' ');return NICK2.has(two)?two:w[w.length-1]}
+ return shortById[String(t.id)]||t.shortDisplayName||t.displayName||t.name||t.abbreviation||''}
 // collect the short names ESPN gives in the match header (the lineup data itself has none)
-const learnShorts=d=>{shortById={};(d.header?.competitions?.[0]?.competitors||[]).forEach(c=>{if(c.team?.id&&c.team.shortDisplayName)shortById[String(c.team.id)]=c.team.shortDisplayName})};
+const learnShorts=d=>{shortById={};[...(d.header?.competitions?.[0]?.competitors||[]),...(d.boxscore?.teams||[])].forEach(c=>{if(c.team?.id&&c.team.shortDisplayName)shortById[String(c.team.id)]=c.team.shortDisplayName})};
 const byHome=(a,b)=>(a.homeAway==='home'?0:1)-(b.homeAway==='home'?0:1);
 const leadersFor=t=>!t?'':'<div class="pl">'+(t.leaders||[]).map(c=>{const l=c.leaders?.[0];return l?`<div class="ld"><span>${esc(c.displayName)}</span><b>${pname(l.athlete)} · ${esc(l.displayValue)}</b></div>`:''}).join('')+'</div>';
 // the two competitors of the match, home first (soccer/baseball/hockey/basketball all list home before away on the page)
 const sides=d=>(d.header?.competitions?.[0]?.competitors||[]).slice().sort(byHome).map(c=>c.team).filter(Boolean);
-const tabsFor=d=>sides(d).map(t=>({team:t,label:shortName(t,curEv?.sp==='soccer'),sub:''}));
+const tabsFor=d=>sides(d).map(t=>({team:t,label:shortName(t),sub:''}));
 const forTeam=(arr,t,get)=>(arr||[]).filter(x=>String(get(x))===String(t.id));
 // scoring + leaders for one team (football/hockey/baseball): only that team's scoring plays and that team's leaders
 // Every player in the box score, so names written in a scoring play can be turned back into tappable links.
@@ -702,7 +712,7 @@ function soccer(d,e,X){
  let h='';learnShorts(d);
  const rs=(d.rosters||[]).slice().sort(byHome);
  tgSel={};
- if(rs.length)h+='<h3>Lineups</h3>'+toggled('ln',rs.map(x=>({team:x.team,label:shortName(x.team,true),sub:typeof x.formation==='string'?x.formation:''})),i=>lineup(rs,i));
+ if(rs.length)h+='<h3>Lineups</h3>'+toggled('ln',rs.map(x=>({team:x.team,label:shortName(x.team),sub:typeof x.formation==='string'?x.formation:''})),i=>lineup(rs,i));
  // Goals first in Team stats (the scoreline is far up the page by then). Order matches the stats block: home, then away.
  const cs=d.header?.competitions?.[0]?.competitors||[],ts=d.boxscore?.teams||[];
  const sc=id=>{const c=cs.find(x=>String(x.team?.id)===String(id));return c?(c.score&&typeof c.score==='object'?c.score.displayValue:c.score):''};
@@ -719,22 +729,22 @@ function rugby(d){
  const body=i=>{const r=rs[i]||rs[0],L=(r.roster||[]).slice().sort((a,b)=>(+a.jersey||99)-(+b.jersey||99)),st=L.filter(p=>+p.jersey>=1&&+p.jersey<=15),sb=L.filter(p=>+p.jersey>15);
   const row=p=>`<div class="p"><i>${esc(p.jersey||'')}</i><span>${esc(p.athlete?.displayName||'')}${p.captain?' <small class="rk">(C)</small>':''}</span><em>${esc(p.position?.abbreviation||'')}${p.subbedOut?' ↓':''}${p.subbedIn?' ↑':''}</em></div>`;
   return(st.length?'<div class="pl">'+st.map(row).join('')+'</div>':'')+(sb.length?'<h4>Replacements</h4><div class="pl">'+sb.map(row).join('')+'</div>':'')+(!L.length?'<div class="note">Lineup not available.</div>':'')};
- return'<h3>Lineups</h3>'+toggled('ln',rs.map(x=>({team:x.team,label:shortName(x.team,true),sub:''})),body)}
+ return'<h3>Lineups</h3>'+toggled('ln',rs.map(x=>({team:x.team,label:shortName(x.team),sub:''})),body)}
 
 // ---------- football ----------
 function nfl(d){
- tgSel={};
+ learnShorts(d);tgSel={};
  const plays=(d.scoringPlays||[]).map(x=>x);
  return scoreAndLeaders(d,plays,x=>`Q${x.period?.number} ${x.clock?.displayValue||''}`,'sl')+stats(d.boxscore?.teams,12)}
 
 // ---------- basketball ----------
 // one toggle for the two box-score tables: starters then bench for the selected team, with team stats below
 function nba(d){
- tgSel={};
+ learnShorts(d);tgSel={};
  const P=(d.boxscore?.players||[]).slice();
  const order=sides(d).map(t=>String(t.id));
  P.sort((a,b)=>order.indexOf(String(a.team?.id))-order.indexOf(String(b.team?.id)));
- const T=P.map(t=>({team:t.team,label:shortName(t.team,false),sub:''}));
+ const T=P.map(t=>({team:t.team,label:shortName(t.team),sub:''}));
  const cols=['MIN','PTS','REB','AST'];
  const tbl=(rows,ix)=>`<div class="tw"><table><tr><th>Player</th>${cols.map(c=>`<th>${c}</th>`).join('')}</tr>`+rows.map(a=>`<tr><td>${pname(a.athlete,a.athlete?.shortName||a.athlete?.displayName)}</td>${ix.map(i=>`<td>${esc(i>=0?a.stats[i]:'')}</td>`).join('')}</tr>`).join('')+'</table></div>';
  const body=i=>{const s=P[i]?.statistics?.[0];if(!s)return'<div class="note">Box score not available.</div>';
@@ -752,12 +762,12 @@ function box(d,types,t){
    A.map(a=>`<tr><td>${pname(a.athlete,a.athlete?.shortName||a.athlete?.displayName)}</td>${ix.map(i=>`<td>${esc(i>=0?a.stats[i]:'')}</td>`).join('')}</tr>`).join('')+'</table></div>'})});
  return h}
 function mlb(d){
- tgSel={};
+ learnShorts(d);tgSel={};
  const plays=(d.plays||[]).filter(p=>p.scoringPlay),T=tabsFor(d);
  if(!T.length)return stats(d.boxscore?.teams,8);
  return toggled('sl',T,i=>scoringBlock(d,T[i].team,plays,p=>(p.period?.type==='Top'?'▲':'▼')+(p.period?.number??''))+box(d,{batting:['H-AB','R','H','RBI','HR','BB','K'],pitching:['IP','H','R','ER','BB','K','HR']},T[i].team))}
 function nhl(d){
- tgSel={};
+ learnShorts(d);tgSel={};
  const plays=(d.plays||[]).filter(p=>p.scoringPlay);
  return scoreAndLeaders(d,plays,p=>(p.period?.number>3?'OT':'P'+(p.period?.number??''))+' '+(p.clock?.displayValue||''),'sl')+stats(d.boxscore?.teams,8)}
 const SAPI='https://site.api.espn.com/apis/v2/sports/';
@@ -849,7 +859,7 @@ $('#x2').onclick=()=>{$('#sheet2').classList.remove('open');render()};
 // freeze the page behind an open sheet (stops the iPhone toolbar/bounce from resizing the sheet at its very bottom edge)
 {const sheets=['#sheet','#sheet2','#sheet3','#sheet4'].map(q=>$(q)),sync=()=>document.documentElement.classList.toggle('lock',sheets.some(x=>x.classList.contains('open')));
  if(typeof MutationObserver!=='undefined')sheets.forEach(x=>new MutationObserver(sync).observe(x,{attributes:true,attributeFilter:['class']}));sync()}
-updatePins();render();
+updatePins();render();backfillShort();
 {const old=Object.values(data).some(x=>Date.now()-x.ts>36e5||x.ev.some(e=>!('tv' in e)));if(TEAMS.length&&(!Object.keys(data).length||old))refresh()}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&TEAMS.length&&Object.values(data).some(x=>Date.now()-x.ts>36e5))refresh()});
 </script>
